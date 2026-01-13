@@ -12,6 +12,7 @@ from jaxtyping import Array, Shaped
 
 from memax.equinox.groups import Module
 from memax.equinox.set_actions.elman import Elman
+from memax.equinox.set_actions.indrnn import IndRNN
 from memax.equinox.set_actions.gru import GRU
 from memax.equinox.set_actions.lstm import LSTM
 from memax.equinox.set_actions.mgu import MGU
@@ -343,6 +344,9 @@ def get_residual_memory_models(
         ),
         "ElmanReLU": lambda recurrent_size, key: Elman(
            hidden_size=recurrent_size, recurrent_size=recurrent_size, key=key, activation=jax.nn.relu, **layer_kwargs.get("ElmanReLU", {})
+        ),
+        "IndRNN": lambda recurrent_size, key: IndRNN(
+           hidden_size=recurrent_size, recurrent_size=recurrent_size, key=key, activation=jax.nn.relu, **layer_kwargs.get("IndRNN", {})
         ),
         "Spherical": lambda recurrent_size, key: Spherical(
             hidden_size=recurrent_size, recurrent_size=recurrent_size, key=key, **layer_kwargs.get("Spherical", {})
