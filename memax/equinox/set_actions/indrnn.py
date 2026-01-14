@@ -44,6 +44,7 @@ class IndRNNMagma(SetAction):
 
         keys = jax.random.split(key, 2)
 
+
         self.recurrent_kernel = jax.random.uniform(
             keys[0], (recurrent_size,), minval=0.0, maxval=1.0
         )
