@@ -43,7 +43,7 @@ class IndRNNMagma(SetAction):
         self.recurrent_max_abs = recurrent_max_abs
 
         keys = jax.random.split(key, 2)
-        # Uniform initialization [0, 1] for recurrent weights and bias to match PyTorch reference
+
         self.recurrent_kernel = jax.random.uniform(
             keys[0], (recurrent_size,), minval=0.0, maxval=1.0
         )
@@ -127,22 +127,13 @@ class IndRNN(GRAS):
             )
         )
         self.scan = set_action_scan
-        
-        # Input weights initialized with random normal stddev=0.001
-        self.W_h = nn.Linear(hidden_size, recurrent_size, use_bias=True, key=keys[1])
-        w_h_init = jax.nn.initializers.uniform(scale=1.0)(keys[1], (recurrent_size, hidden_size))
-        self.W_h = eqx.tree_at(lambda l: l.weight, self.W_h, w_h_init)
-
-        self.W_y = nn.Linear(recurrent_size, hidden_size, use_bias=True, key=keys[2])
-        w_y_init = jax.nn.initializers.uniform(scale=1.0)(keys[2], (hidden_size, recurrent_size))
-        self.W_y = eqx.tree_at(lambda l: l.weight, self.W_y, w_y_init)
 
     @jaxtyped(typechecker=typechecker)
     def forward_map(
         self, x: Input, key: Optional[Shaped[PRNGKeyArray, ""]] = None
     ) -> IndRNNRecurrentStateWithReset:
         emb, start = x
-        return self.W_h(emb), start
+        return emb, start
 
     @jaxtyped(typechecker=typechecker)
     def backward_map(
@@ -152,7 +143,8 @@ class IndRNN(GRAS):
         key: Optional[Shaped[PRNGKeyArray, ""]] = None,
     ) -> Float[Array, "{self.hidden_size}"]:
         z, reset_flag = h
-        return self.W_y(z)
+        emb, start = x
+        return z
 
     @jaxtyped(typechecker=typechecker)
     def initialize_carry(
