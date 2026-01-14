@@ -42,9 +42,14 @@ class IndRNNMagma(SetAction):
         self.recurrent_min_abs = recurrent_min_abs
         self.recurrent_max_abs = recurrent_max_abs
 
-        # Constant initialization to 1.0 for recurrent weights
-        self.recurrent_kernel = jnp.ones((recurrent_size,))
-        self.bias = jnp.zeros((recurrent_size,))
+        keys = jax.random.split(key, 2)
+        # Uniform initialization [0, 1] for recurrent weights and bias to match PyTorch reference
+        self.recurrent_kernel = jax.random.uniform(
+            keys[0], (recurrent_size,), minval=0.0, maxval=1.0
+        )
+        self.bias = jax.random.uniform(
+            keys[1], (recurrent_size,), minval=0.0, maxval=1.0
+        )
 
     @jaxtyped(typechecker=typechecker)
     def __call__(
@@ -101,7 +106,7 @@ class IndRNN(GRAS):
         activation: Callable = jax.nn.relu,
         recurrent_min_abs: float = 0.0,
         recurrent_max_abs: Optional[float] = None,
-        max_timesteps: Optional[int] = None,
+        max_timesteps: int = 1024,
         *,
         key: PRNGKeyArray,
     ):
@@ -124,11 +129,13 @@ class IndRNN(GRAS):
         self.scan = set_action_scan
         
         # Input weights initialized with random normal stddev=0.001
-        self.W_h = nn.Linear(hidden_size, recurrent_size, use_bias=False, key=keys[1])
-        w_h_init = jax.nn.initializers.normal(stddev=0.001)(keys[1], (recurrent_size, hidden_size))
+        self.W_h = nn.Linear(hidden_size, recurrent_size, use_bias=True, key=keys[1])
+        w_h_init = jax.nn.initializers.uniform(scale=1.0)(keys[1], (recurrent_size, hidden_size))
         self.W_h = eqx.tree_at(lambda l: l.weight, self.W_h, w_h_init)
 
-        self.W_y = nn.Linear(recurrent_size, hidden_size, key=keys[2])
+        self.W_y = nn.Linear(recurrent_size, hidden_size, use_bias=True, key=keys[2])
+        w_y_init = jax.nn.initializers.uniform(scale=1.0)(keys[2], (hidden_size, recurrent_size))
+        self.W_y = eqx.tree_at(lambda l: l.weight, self.W_y, w_y_init)
 
     @jaxtyped(typechecker=typechecker)
     def forward_map(
