@@ -49,7 +49,6 @@ class TTTLinearSemigroup(Semigroup):
     def initialize_carry(
         self, key: Optional[Shaped[PRNGKeyArray, ""]] = None
     ) -> TTTRecurrentState:
-        # Initial hidden state is an identity matrix (M) and zero matrix (X)
         return (
             jnp.eye(self.recurrent_size),
             jnp.zeros((self.recurrent_size, self.recurrent_size)),
@@ -57,10 +56,9 @@ class TTTLinearSemigroup(Semigroup):
         )
 
     @jaxtyped(typechecker=typechecker)
-    def _rotate_matrix(
+    def rotate_matrix(
         self, mat: Float[Array, "Key Value"], position: Shaped[Array, ""]
     ) -> Float[Array, "Key Value"]:
-        # Apply R(position) @ mat @ R(position)^T without explicitly building R.
         mat = jax.vmap(lambda row: apply_rope_at_position(row, position))(mat)
         mat_t = jax.vmap(lambda col: apply_rope_at_position(col, -position))(mat.T)
         return mat_t.T
@@ -78,8 +76,8 @@ class TTTLinearSemigroup(Semigroup):
         if self.use_rope:
             # Shift the left segment by the right segment length, matching
             # the semidirect-product composition pattern used in FFM.
-            M_i = self._rotate_matrix(M_i, j)
-            X_i = self._rotate_matrix(X_i, j)
+            M_i = self.rotate_matrix(M_i, j)
+            X_i = self.rotate_matrix(X_i, j)
         return M_j @ M_i, M_j @ X_i + X_j, j + i
 
 
@@ -150,16 +148,11 @@ class TTTLinear(GRAS):
         
         k = self.K(emb)
         if self.positional_embedding == "rope":
-            # Each atomic element uses local timestep 1; offsets are incorporated
-            # by the associative operator when segments are merged.
             k = apply_rope_at_position(k, jnp.array(1, dtype=jnp.int32))
-        # Normalization is critical in TTT to prevent explosive state growth
-        # during the unrolled gradient descent steps.
         k = k / (jnp.linalg.norm(k) + 1e-6) 
         
         v = self.V(emb)
 
-        # The TTT-Linear gradient update mapped to the semigroup components
         M = jnp.eye(self.recurrent_size) - self.eta * jnp.outer(k, k)
         if self.use_residual:
             # As implemented in the code (and not mentioned in the paper...)
