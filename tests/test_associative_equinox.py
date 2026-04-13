@@ -34,7 +34,7 @@ def perturb(pytree, key):
         return (x + jax.random.uniform(key, shape=x.shape)).astype(x.dtype)
     return jax.tree.map(_perturb, pytree)
 
-@pytest.mark.parametrize("name, sg", get_semigroups(recurrent_size=3, key=jax.random.PRNGKey(0)).items())
+@pytest.mark.parametrize("name, sg", get_semigroups(recurrent_size=4, key=jax.random.PRNGKey(0)).items())
 def test_semigroup_correctness(name: str, sg: Semigroup):
     initial_state = sg.initialize_carry()
     x1 = jax.tree.map(partial(random_state, key=jax.random.key(1)), initial_state)
