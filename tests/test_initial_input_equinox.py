@@ -22,6 +22,7 @@ def get_desired_accuracies():
         "DeltaNet": 0.99,
         "DeltaProduct": 0.99,
         "GDN": 0.99,
+        "TTTL": 0.99,
         "LRU": 0.99,
         "S6": 0.99,
         "LinearRNN": 0.99,
