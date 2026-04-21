@@ -117,7 +117,7 @@ class TTTLinear(GRAS):
         recurrent_size: int,
         key: PRNGKeyArray,
         positional_embedding: Optional[str] = None,
-        use_residual: bool = True,
+        use_residual: bool = False,
     ):
         assert positional_embedding in [None, "rope"], "positional_embedding must be None or 'rope'"
         self.recurrent_size = recurrent_size
