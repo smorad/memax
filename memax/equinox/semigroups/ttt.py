@@ -149,7 +149,6 @@ class TTTLinear(GRAS):
         k = self.K(emb)
         if self.positional_embedding == "rope":
             k = apply_rope_at_position(k, jnp.array(1, dtype=jnp.int32))
-        k = k / (jnp.linalg.norm(k) + 1e-6) 
         
         v = self.V(emb)
 
@@ -177,7 +176,6 @@ class TTTLinear(GRAS):
         q = self.Q(emb)
         if self.positional_embedding == "rope":
             q = apply_rope_at_position(q, t)
-        q = q / (jnp.linalg.norm(q) + 1e-6) 
         
         return self.output(X @ q)
 
