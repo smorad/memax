@@ -9,11 +9,11 @@ def test_step():
     drot = Rotation.from_quat(jnp.stack([
         Rotation.from_euler('z', jnp.pi/2).as_quat(),
         Rotation.from_euler('y', -jnp.pi/2).as_quat(),
-        Rotation.from_euler('YZ', (jnp.pi/2, -jnp.pi/2)).as_quat()
+        Rotation.from_euler('YZ', jnp.array([jnp.pi/2, -jnp.pi/2])).as_quat()
     ], axis=0))
     rot = Rotation.from_quat(jnp.stack([
         Rotation.from_euler('z', jnp.pi / 2).as_quat(),
-        Rotation.from_euler('zx', (jnp.pi/2, jnp.pi/2)).as_quat(),
+        Rotation.from_euler('zx', jnp.array([jnp.pi/2, jnp.pi/2])).as_quat(),
         Rotation.identity().as_quat(),
     ], axis=0))
 

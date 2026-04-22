@@ -4,6 +4,7 @@ It also provides a straightforward way to construct multi-layer recurrent models
 
 from beartype.typing import Callable, Dict, Tuple, Any, Optional
 
+import math
 import equinox as eqx
 import jax
 import jax.numpy as jnp
@@ -20,6 +21,7 @@ from memax.equinox.set_actions.spherical import Spherical
 from memax.equinox.models.residual import ResidualModel
 from memax.equinox.semigroups.fwp import FWP, FWPSemigroup
 from memax.equinox.semigroups.fart import FART, FARTSemigroup
+from memax.equinox.semigroups.ttt import TTTLinear, TTTLinearSemigroup
 from memax.equinox.semigroups.ffm import FFM, FFMSemigroup
 from memax.equinox.semigroups.lrnn import LinearRecurrent, LinearRNNSemigroup
 from memax.equinox.semigroups.lru import LRU, LRUSemigroup
@@ -233,6 +235,8 @@ def get_semigroups(
         "FWP": FWPSemigroup(recurrent_size, **semigroup_kwargs.get("FWP", {})),
         "DeltaNet": DeltaNetSemigroup(recurrent_size, **semigroup_kwargs.get("DeltaNet", {})),
         "DeltaProduct": DeltaProductSemigroup(recurrent_size, **semigroup_kwargs.get("DeltaProduct", {})),
+        "TTTL": TTTLinearSemigroup(recurrent_size, **semigroup_kwargs.get("TTTL", {})),
+        "TTTL-RoPE": TTTLinearSemigroup(recurrent_size, **semigroup_kwargs.get("TTTL", {"use_rope": True})),
         "GDN": GDNSemigroup(recurrent_size, **semigroup_kwargs.get("GDN", {})),
         "Stack": StackSemigroup(recurrent_size, **semigroup_kwargs.get("Stack", {"stack_size": 4})),
         "Attention": AttentionSemigroup(recurrent_size, **semigroup_kwargs.get("Attention", {"window_size": 4})),
@@ -307,6 +311,16 @@ def get_residual_memory_models(
         "GDN": lambda recurrent_size, key: GDN(
            hidden_size=recurrent_size, recurrent_size=round(recurrent_size ** 0.5), key=key, **layer_kwargs.get("GDN", {})
         ),
+        "TTTL": lambda recurrent_size, key: TTTLinear(
+           hidden_size=recurrent_size, recurrent_size=round(recurrent_size ** 0.5), key=key, **layer_kwargs.get("TTTL", {})
+        ),
+        "TTTL-RoPE": lambda recurrent_size, key: TTTLinear(
+            hidden_size=recurrent_size,
+            recurrent_size=math.ceil(recurrent_size ** 0.5 / 2) * 2,
+            key=key,
+            positional_embedding="rope",
+            **layer_kwargs.get("TTTL-RoPE", {}),
+          ),
         "FFM": lambda recurrent_size, key: FFM(
            hidden_size=recurrent_size, context_size=recurrent_size//4, trace_size=4, key=key, **layer_kwargs.get("FFM", {})
         ),
