@@ -26,7 +26,7 @@ We implement both linear and log-complexity recurrent models.
 | DeltaNet | $O(\log{n})$ | [[paper]](https://arxiv.org/pdf/2406.06484) | [[code]](memax/equinox/semigroups/delta.py) |
 | Gated DeltaNet | $O(\log{n})$ | [[paper]](https://arxiv.org/pdf/2412.06464) | [[code]](memax/equinox/semigroups/gdn.py) |
 | DeltaProduct | $O(\log{n})$ | [[paper]](https://arxiv.org/abs/2502.10297) | [[code]](memax/equinox/semigroups/deltap.py) |
-| Test Time Training - Linear $O(\log{n})$ | [[paper]](https://proceedings.mlr.press/v267/sun25h.html) | [[code]](memax/equinox/semigroups/ttt.py) |
+| Test Time Training - Linear | $O(\log{n})$ | [[paper]](https://proceedings.mlr.press/v267/sun25h.html) | [[code]](memax/equinox/semigroups/ttt.py) |
 | Attention | $O(\log{n})$ | [[paper]](https://arxiv.org/abs/1706.03762) | [[code]](memax/equinox/semigroups/attn.py) |
 | RoPE-Attention | $O(\log{n})$ | [[paper]](https://arxiv.org/abs/2104.09864) | [[code]](memax/equinox/semigroups/attn.py) |
 | ALiBi-Attention | $O(\log{n})$ | [[paper]](https://arxiv.org/abs/2108.12409) | [[code]](memax/equinox/semigroups/attn.py) |
