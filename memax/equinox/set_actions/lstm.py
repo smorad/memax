@@ -1,21 +1,21 @@
-from beartype.typing import Callable, Optional, Tuple
-
+import equinox as eqx
 import jax
 import jax.numpy as jnp
 from beartype import beartype as typechecker
+from beartype.typing import Callable, Optional, Tuple
 from equinox import nn
 from jaxtyping import Array, Float, PRNGKeyArray, Shaped, jaxtyped
 
-from memax.equinox.groups import BinaryAlgebra, SetAction, Resettable
 from memax.equinox.gras import GRAS
-from memax.mtypes import Input, InputEmbedding, StartFlag
+from memax.equinox.groups import BinaryAlgebra, Resettable, SetAction
 from memax.equinox.scans import set_action_scan
+from memax.mtypes import Input, InputEmbedding, StartFlag
 
 LSTMRecurrentState = Tuple[Float[Array, "Recurrent"], Float[Array, "Recurrent"]]
 LSTMRecurrentStateWithReset = Tuple[LSTMRecurrentState, StartFlag]
 
 
-class LSTMMagma(SetAction):
+class LSTMSetAction(SetAction):
     """
     The Long Short-Term Memory set action
 
@@ -32,7 +32,11 @@ class LSTMMagma(SetAction):
     W_o: nn.Linear
     W_c: nn.Linear
 
-    def __init__(self, recurrent_size: int, key):
+    def __init__(
+        self,
+        recurrent_size: int,
+        key,
+    ):
         self.recurrent_size = recurrent_size
         keys = jax.random.split(key, 8)
         self.U_f = nn.Linear(
@@ -65,7 +69,7 @@ class LSTMMagma(SetAction):
         f_c = jax.nn.tanh(self.W_c(x_t) + self.U_c(h))
 
         c = f_f * c + f_i * f_c
-        h = f_o * c
+        h = f_o * jax.nn.tanh(c)
 
         return (c, h)
 
@@ -101,7 +105,7 @@ class LSTM(GRAS):
 
     def __init__(self, recurrent_size, key):
         keys = jax.random.split(key, 3)
-        self.algebra = Resettable(LSTMMagma(recurrent_size, key=keys[0]))
+        self.algebra = Resettable(LSTMSetAction(recurrent_size, key=keys[0]))
         self.scan = set_action_scan
 
     @jaxtyped(typechecker=typechecker)
@@ -118,7 +122,7 @@ class LSTM(GRAS):
         h: LSTMRecurrentStateWithReset,
         x: Input,
         key: Optional[Shaped[PRNGKeyArray, ""]] = None,
-    ) ->  Float[Array, "Recurrent"]:
+    ) -> Float[Array, "Recurrent"]:
         (c_t, h_t), reset_flag = h
         emb, start = x
         return h_t

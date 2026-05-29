@@ -2,7 +2,7 @@ from setuptools import find_packages, setup
 
 setup(
     name="memax",
-    version="0.1.2",
+    version="0.1.1",
     author="Steven Morad",
     author_email="stevenmorad@gmail.com",
     description="Deep memory and sequence modeling in JAX",
@@ -18,29 +18,31 @@ setup(
         "beartype",
     ],
     extras_require={
-        'equinox': ['equinox'],
-        'flax': [
-            'flax',
+        "equinox": ["equinox"],
+        # TODO: Update if flax fixes their shit
+        "flax": [
+            "flax",
+            'please-downgrade-to-python-3.13-for-flax; python_version >= "3.14"',
         ],
-        'train': [
-            'datasets',
-            'tqdm',
-            'pillow',
-            'wandb',
+        "train": [
+            "datasets",
+            "tqdm",
+            "pillow",
+            "wandb",
         ],
-        'all': [
-            'equinox',
-            'flax',
+        "all": [
+            "equinox",
+            "flax",
             'please-downgrade-to-python-3.13-for-flax; python_version >= "3.14"',
             # train
-            'datasets',
-            'tqdm',
-            'pillow',
-            'wandb',
+            "datasets",
+            "tqdm",
+            "pillow",
+            "wandb",
         ],
-        'test': [
-            'pytest',
-        ]
+        "test": [
+            "pytest",
+        ],
     },
     classifiers=[
         "Programming Language :: Python :: 3",
