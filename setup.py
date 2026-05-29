@@ -31,7 +31,6 @@ setup(
         'all': [
             'equinox',
             'flax',
-            'please-downgrade-to-python-3.13-for-flax; python_version >= "3.14"',
             # train
             'datasets',
             'tqdm',
