@@ -18,31 +18,29 @@ setup(
         "beartype",
     ],
     extras_require={
-        'equinox': ['equinox'],
+        "equinox": ["equinox"],
         # TODO: Update if flax fixes their shit
-        'flax': [
-            'flax',
-            'please-downgrade-to-python-3.13-for-flax; python_version >= "3.14"', 
+        "flax": [
+            "flax",
         ],
-        'train': [
-            'datasets',
-            'tqdm',
-            'pillow',
-            'wandb',
+        "train": [
+            "datasets",
+            "tqdm",
+            "pillow",
+            "wandb",
         ],
-        'all': [
-            'equinox',
-            'flax',
-            'please-downgrade-to-python-3.13-for-flax; python_version >= "3.14"',
+        "all": [
+            "equinox",
+            "flax",
             # train
-            'datasets',
-            'tqdm',
-            'pillow',
-            'wandb',
+            "datasets",
+            "tqdm",
+            "pillow",
+            "wandb",
         ],
-        'test': [
-            'pytest',
-        ]
+        "test": [
+            "pytest",
+        ],
     },
     classifiers=[
         "Programming Language :: Python :: 3",

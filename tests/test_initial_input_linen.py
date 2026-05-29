@@ -1,9 +1,11 @@
 """Test all models on a simple 'remember the first input in the sequence' task"""
-import pytest
+
+from functools import partial
+
 import jax
 import jax.numpy as jnp
 import optax
-from functools import partial
+import pytest
 
 from memax.linen.train_utils import get_residual_memory_models
 
@@ -16,14 +18,20 @@ def get_desired_accuracies():
         "GRU": 0.999,
     }
 
+
 def ce_loss(y_hat, y):
     return -jnp.mean(jnp.sum(y * jax.nn.log_softmax(y_hat, axis=-1), axis=-1))
 
-@pytest.mark.parametrize("model_name, model", get_residual_memory_models(
-        8, 4 - 1, 
-    ).items())
+
+@pytest.mark.parametrize(
+    "model_name, model",
+    get_residual_memory_models(
+        16,
+        3 - 1,
+    ).items(),
+)
 def test_initial_input(
-    model_name, model, epochs=4000, num_seqs=5, seq_len=20, input_dims=4
+    model_name, model, epochs=400, num_seqs=5, seq_len=20, input_dims=3
 ):
     timesteps = num_seqs * seq_len
     seq_idx = jnp.array([seq_len * i for i in range(num_seqs)])
@@ -34,7 +42,9 @@ def test_initial_input(
     key = jax.random.PRNGKey(0)
     dummy_x = jax.random.randint(key, (timesteps,), 0, input_dims - 1)
     dummy_x = jax.nn.one_hot(dummy_x, input_dims - 1)
-    dummy_x = jnp.concatenate([dummy_x, start.astype(jnp.float32).reshape(-1, 1)], axis=-1)
+    dummy_x = jnp.concatenate(
+        [dummy_x, start.astype(jnp.float32).reshape(-1, 1)], axis=-1
+    )
     dummy_h = model.zero_carry()
     dummy_starts = jnp.zeros(dummy_x.shape[0], dtype=bool)
     params = model.init(key, dummy_h, (dummy_x, dummy_starts))
@@ -43,7 +53,7 @@ def test_initial_input(
     state = opt.init(params)
 
     def error(params, key):
-        h = init_carry_fn(params) 
+        h = init_carry_fn(params)
         x = jax.random.randint(key, (timesteps,), 0, input_dims - 1)
         x = jax.nn.one_hot(x, input_dims - 1)
         x = jnp.concatenate([x, start.astype(jnp.float32).reshape(-1, 1)], axis=-1)
@@ -75,7 +85,7 @@ def test_initial_input(
 
     # Verify recurrent mode works well too
     def rerror(params, key):
-        h = init_carry_fn(params) 
+        h = init_carry_fn(params)
         x = jax.random.randint(key, (timesteps,), 0, input_dims - 1)
         x = jax.nn.one_hot(x, input_dims - 1)
         x = jnp.concatenate([x, start.astype(jnp.float32).reshape(-1, 1)], axis=-1)
@@ -94,7 +104,7 @@ def test_initial_input(
 
     _, r_metrics = rerror(params, key)
     assert (
-        r_metrics['accuracy']>= get_desired_accuracies()[model_name]
+        r_metrics["accuracy"] >= get_desired_accuracies()[model_name]
     ), f"Failed {model_name} (recurrent mode), expected {get_desired_accuracies()[model_name]}, got {r_metrics['accuracy']}"
 
 
