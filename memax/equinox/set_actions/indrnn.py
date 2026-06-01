@@ -1,26 +1,27 @@
 """Module implementing the IndRNN cell"""
-from beartype.typing import Callable, Optional, Tuple
 
+import equinox as eqx
 import jax
 import jax.numpy as jnp
 from beartype import beartype as typechecker
-import equinox as eqx
+from beartype.typing import Callable, Optional, Tuple
 from equinox import nn
 from jaxtyping import Array, Float, PRNGKeyArray, Shaped, jaxtyped
 
-from memax.equinox.groups import BinaryAlgebra, SetAction, Resettable
 from memax.equinox.gras import GRAS
-from memax.mtypes import Input, StartFlag
+from memax.equinox.groups import BinaryAlgebra, Resettable, SetAction
 from memax.equinox.scans import set_action_scan
+from memax.mtypes import Input, StartFlag
 
 IndRNNRecurrentState = Float[Array, "Recurrent"]
 IndRNNRecurrentStateWithReset = Tuple[IndRNNRecurrentState, StartFlag]
 
 
-class IndRNNMagma(SetAction):
+class IndRNNSetAction(SetAction):
     """
     Independently Recurrent Neural Network Cell.
     """
+
     recurrent_size: int
     recurrent_kernel: Array
     bias: Array
@@ -43,7 +44,6 @@ class IndRNNMagma(SetAction):
         self.recurrent_max_abs = recurrent_max_abs
 
         keys = jax.random.split(key, 2)
-
 
         self.recurrent_kernel = jax.random.uniform(
             keys[0], (recurrent_size,), minval=0.0, maxval=1.0
@@ -81,6 +81,7 @@ class IndRNN(GRAS):
 
     Paper: https://arxiv.org/abs/1803.04831
     """
+
     algebra: BinaryAlgebra
     scan: Callable[
         [
@@ -95,7 +96,6 @@ class IndRNN(GRAS):
     ]
     recurrent_size: int
     hidden_size: int
-
 
     def __init__(
         self,
@@ -113,10 +113,10 @@ class IndRNN(GRAS):
         keys = jax.random.split(key, 3)
 
         if recurrent_max_abs is None and max_timesteps is not None:
-             recurrent_max_abs = 2.0 ** (1.0 / max_timesteps)
+            recurrent_max_abs = 2.0 ** (1.0 / max_timesteps)
 
         self.algebra = Resettable(
-            IndRNNMagma(
+            IndRNNSetAction(
                 recurrent_size,
                 activation=activation,
                 recurrent_min_abs=recurrent_min_abs,
