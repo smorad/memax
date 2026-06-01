@@ -45,15 +45,15 @@ We provide [datasets](memax/datasets) to test our recurrent models.
 >
 > **Sequence Lengths:** `[784]`
 
-### MNIST Math [[HuggingFace]](https://huggingface.co/datasets?sort=trending&search=bolt-lab%2Fmnist-math) [[Code]](memax/datasets/sequential_mnist.py)
+### MNIST Math [[HuggingFace]](https://huggingface.co/datasets/bolt-lab/mnist-math-100) [[Code]](memax/datasets/mnist_math.py)
 > The recurrent model receives a sequence of MNIST images and operators, pixel by pixel, and must predict the percentile of the operators applied to the MNIST image classes.
 >
-> **Sequence Lengths:** `[784 * 5, 784 * 100, 784 * 1_000, 784 * 10_000, 784 * 1_000_000]`
+> **Sequence Lengths:** `[784 * 100, …]` on Hub as `bolt-lab/mnist-math-{length}` (default loader: `100`; `100_000` is under `smorad/mnist-math-100000`).
 
-### Continuous Localization [[HuggingFace]](https://huggingface.co/datasets?sort=trending&search=bolt-lab%2Fcontinuous-localization) [[Code]](memax/datasets/sequential_mnist.py)
+### Continuous Localization [[HuggingFace]](https://huggingface.co/datasets/bolt-lab/continuous-localization-20) [[Code]](memax/datasets/continuous_localization.py)
 > The recurrent model receives a sequence of translation and rotation vectors **in the local coordinate frame**, and must predict the corresponding position and orientation **in the global coordinate frame**.
 >
-> **Sequence Lengths:** `[20, 100, 1_000]`
+> **Sequence Lengths:** `[20, 100]` on Hub as `bolt-lab/continuous-localization-{length}`.
 
 # Getting Started
 Install `memax` using pip for your specific framework:
@@ -105,10 +105,23 @@ hs, ys = filter_jit(filter_vmap(model))(hs_0, (xs, starts))
 ```
 
 ## Running Baselines
-You can compare various recurrent models on our datasets with a single command
+You can compare various recurrent models on our datasets with a single command:
 ```bash
-python run_equinox_experiments.py # equinox framework
-python run_linen_experiments.py # flax linen framework
+python run_equinox_experiments.py --dataset-name sequential_mnist
+python run_linen_experiments.py --dataset-name sequential_mnist
+```
+
+Dataset names: see `memax.experiments.datasets.DATASET_NAMES` (e.g. `sequential_mnist`, `mnist_math`, `mnist-math-100`, `continuous-localization-20`). Legacy alias: `sequential_rotation`.
+
+For a quick CPU smoke run (tiny model, few optimizer steps):
+```bash
+python run_equinox_experiments.py --dataset-name sequential_mnist --smoke --models GRU
+python run_linen_experiments.py --dataset-name sequential_mnist --smoke --models GRU
+```
+
+CI runs synthetic smoke tests only (`pytest`; no Hugging Face downloads). To exercise real datasets locally:
+```bash
+pytest -m integration tests/test_experiment_smoke.py
 ```
 
 

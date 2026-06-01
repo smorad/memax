@@ -1,6 +1,6 @@
 """
 This file contains the code for creating the MNIST Math dataset,
-as well as the code that preprocesses the dataset before training. 
+as well as the code that preprocesses the dataset before training.
 The MNIST Math dataset consists of sequences of MNIST digits
 interspersed with plus and minus operators. The task is to compute
 the cumulative result of the arithmetic expression formed by the digits
@@ -16,8 +16,10 @@ import jax.numpy as jnp
 import tqdm
 from datasets import Dataset, Features, Image, Sequence, Value, load_dataset
 
+from memax.datasets.hub import MNIST, MNIST_MATH_SEQ_LENS, mnist_math_hub_id
+
 NUM_LABELS = 10
-SEQ_LENS = [100, 1_000, 10_000, 100_000, 1_000_000]
+SEQ_LENS = MNIST_MATH_SEQ_LENS
 
 FEATURES = Features(
     {
@@ -173,7 +175,7 @@ def generate_dataset(key, mnist, dataset_size=10, num_terms=5):
 
 
 def make_hf_datasets():
-    mnist = load_dataset("mnist")
+    mnist = load_dataset(MNIST)
     train_dset = generate_dataset(jax.random.key(0), mnist["train"], 60_000)
     test_dset = generate_dataset(jax.random.key(1), mnist["test"], 10_000)
     train_dset = Dataset.from_dict(train_dset).cast(FEATURES)
@@ -183,13 +185,14 @@ def make_hf_datasets():
 
 def upload_hf_datasets(length):
     train, test = make_hf_datasets()
-    train.push_to_hub(f"smorad/mnist-math-{length}", split="train")
-    test.push_to_hub(f"smorad/mnist-math-{length}", split="test")
+    repo_id = mnist_math_hub_id(length)
+    train.push_to_hub(repo_id, split="train")
+    test.push_to_hub(repo_id, split="test")
 
 
-def get_dataset(seq_len=5):
+def get_dataset(seq_len=100):
     assert seq_len in SEQ_LENS, f"Invalid length, must be in {SEQ_LENS}"
-    dataset = load_dataset("smorad/mnist-math").with_format("np")
+    dataset = load_dataset(mnist_math_hub_id(seq_len)).with_format("np")
     num_labels = 10
 
     x = dataset["train"]["image_flat"]

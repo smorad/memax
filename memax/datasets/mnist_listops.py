@@ -4,8 +4,8 @@ import jax
 import jax.numpy as jnp
 from datasets import load_dataset  # huggingface datasets
 
+from memax.datasets.hub import MNIST
 from memax.train_utils import get_residual_memory_models
-
 
 NUM_EPOCHS = 100
 BATCH_SIZE = 32
@@ -105,7 +105,7 @@ def normalize_and_flatten(x):
 
 
 def make_dataset(dataset_size=3, num_terms=5, key=jax.random.key(0), batch_size=32):
-    dataset = load_dataset("mnist")
+    dataset = load_dataset(MNIST)
     x, y = jnp.array(dataset["train"]["image"]), jnp.array(dataset["train"]["label"])
 
     keys = jax.random.split(key, 3)
