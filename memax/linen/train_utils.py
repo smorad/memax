@@ -2,8 +2,6 @@
 It includes loss functions, accuracy metrics, and training loops.
 It also provides a straightforward way to construct multi-layer recurrent models."""
 
-from typing import Any
-
 import jax
 import jax.numpy as jnp
 import optax
@@ -67,7 +65,6 @@ def loss_classify_terminal_output(
     seq_len = x.shape[1]
     starts = jnp.zeros((batch_size, seq_len), dtype=bool)
     h0 = init_carry_fn(params)
-    # h0 = jax.tree_map(partial(add_batch_dim, batch_size=batch_size), h0)
     h0 = add_batch_dim(h0, batch_size)
 
     _, y_preds = jax.vmap(model_apply_fn, in_axes=[None, 0, 0])(params, h0, (x, starts))
@@ -76,6 +73,60 @@ def loss_classify_terminal_output(
     loss = cross_entropy(y_pred, y)
     acc = accuracy(y_pred, y)
     return loss, {"loss": loss, "accuracy": acc}
+
+
+def mse(
+    y_hat: Shaped[Array, "Batch ... Feature"], y: Shaped[Array, "Batch ... Feature"]
+) -> Shaped[Array, "1"]:
+    return jnp.mean(jnp.linalg.norm(y - y_hat, axis=-1, ord=2))
+
+
+def l1_error(
+    y_hat: Shaped[Array, "Batch ... Feature"], y: Shaped[Array, "Batch ... Feature"]
+) -> Shaped[Array, "1"]:
+    return jnp.mean(jnp.linalg.norm(y - y_hat, axis=-1, ord=1))
+
+
+def loss_regress_terminal_output(
+    params: FrozenDict,
+    x: Shaped[Array, "Batch Time Feature"],
+    y: Shaped[Array, "Batch Feature"],
+    init_carry_fn,
+    model_apply_fn,
+) -> Tuple[Shaped[Array, "1"], Dict[str, Array]]:
+    batch_size = x.shape[0]
+    seq_len = x.shape[1]
+    starts = jnp.zeros((batch_size, seq_len), dtype=bool)
+    h0 = init_carry_fn(params)
+    h0 = add_batch_dim(h0, batch_size)
+
+    _, y_preds = jax.vmap(model_apply_fn, in_axes=[None, 0, 0])(params, h0, (x, starts))
+    y_pred = y_preds[:, -1]
+
+    loss = mse(y_pred, y)
+    l1 = l1_error(y_pred, y)
+    return loss, {"loss": loss, "l1_error": l1}
+
+
+def make_linen_loss_fn(model, loss_name: str):
+    """Bind a terminal loss to a linen ResidualModel."""
+    from functools import partial
+
+    init_carry_fn = partial(model.apply, method="initialize_carry")
+    model_apply_fn = model.apply
+    if loss_name == "loss_classify_terminal_output":
+        return partial(
+            loss_classify_terminal_output,
+            init_carry_fn=init_carry_fn,
+            model_apply_fn=model_apply_fn,
+        )
+    if loss_name == "loss_regress_terminal_output":
+        return partial(
+            loss_regress_terminal_output,
+            init_carry_fn=init_carry_fn,
+            model_apply_fn=model_apply_fn,
+        )
+    raise ValueError(f"Unknown loss: {loss_name}")
 
 
 def get_semigroups(

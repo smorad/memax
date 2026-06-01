@@ -31,6 +31,12 @@ all = [
 ]
 test = ["pytest"]
 
+[tool.pytest.ini_options]
+markers = [
+    "integration: downloads Hugging Face datasets (not run in default CI)",
+]
+addopts = "-m 'not integration'"
+
 [build-system]
 requires = ["setuptools>=61", "wheel"]
 build-backend = "setuptools.build_meta"

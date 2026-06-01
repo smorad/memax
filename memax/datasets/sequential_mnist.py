@@ -7,6 +7,8 @@ import jax
 import jax.numpy as jnp
 from datasets import load_dataset
 
+from memax.datasets.hub import MNIST
+
 
 def normalize_and_flatten(x):
     # batch, time, feature
@@ -15,7 +17,7 @@ def normalize_and_flatten(x):
 
 
 def get_dataset():
-    dataset = load_dataset("mnist")
+    dataset = load_dataset(MNIST)
     num_labels = 10
 
     x = jnp.array(dataset["train"]["image"])
