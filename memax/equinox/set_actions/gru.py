@@ -1,21 +1,20 @@
-from beartype.typing import Callable, Optional, Tuple
-
 import jax
 import jax.numpy as jnp
 from beartype import beartype as typechecker
+from beartype.typing import Callable, Optional, Tuple
 from equinox import nn
 from jaxtyping import Array, Float, PRNGKeyArray, Shaped, jaxtyped
 
-from memax.equinox.groups import BinaryAlgebra, SetAction, Resettable
 from memax.equinox.gras import GRAS
-from memax.mtypes import Input, StartFlag
+from memax.equinox.groups import BinaryAlgebra, Resettable, SetAction
 from memax.equinox.scans import set_action_scan
+from memax.mtypes import Input, StartFlag
 
 GRURecurrentState = Float[Array, "Recurrent"]
 GRURecurrentStateWithReset = Tuple[GRURecurrentState, StartFlag]
 
 
-class GRUMagma(SetAction):
+class GRUSetAction(SetAction):
     """
     The Gated Recurrent Unit set action
 
@@ -88,7 +87,7 @@ class GRU(GRAS):
     def __init__(self, recurrent_size, key):
         keys = jax.random.split(key, 3)
         self.recurrent_size = recurrent_size
-        self.algebra = Resettable(GRUMagma(recurrent_size, key=keys[0]))
+        self.algebra = Resettable(GRUSetAction(recurrent_size, key=keys[0]))
         self.scan = set_action_scan
 
     @jaxtyped(typechecker=typechecker)

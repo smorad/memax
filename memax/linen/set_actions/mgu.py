@@ -6,20 +6,20 @@ from beartype.typing import Optional, Tuple
 from jaxtyping import Array, Float, PRNGKeyArray, Shaped, jaxtyped
 
 from memax.linen.gras import GRAS
-from memax.linen.groups import BinaryAlgebra, Resettable, SetAction
+from memax.linen.groups import Resettable, SetAction
 from memax.linen.inits import dense as equinox_dense
 from memax.linen.scans import set_action_scan
 from memax.mtypes import Input, StartFlag
 
-GRURecurrentState = Float[Array, "Recurrent"]
-GRURecurrentStateWithReset = Tuple[GRURecurrentState, StartFlag]
+MGURecurrentState = Float[Array, "Recurrent"]
+MGURecurrentStateWithReset = Tuple[MGURecurrentState, StartFlag]
 
 
-class GRUSetAction(SetAction):
+class MGUSetAction(SetAction):
     """
-    The Gated Recurrent Unit set action
+    The Minimal Gated Unit set action
 
-    Paper: https://arxiv.org/abs/1406.1078
+    Paper: https://arxiv.org/abs/1701.03452
     """
 
     recurrent_size: int
@@ -28,39 +28,35 @@ class GRUSetAction(SetAction):
     def setup(self):
         n = self.recurrent_size
         init = self.use_equinox_init
-        self.U_z = equinox_dense(n, n, use_bias=False, use_equinox_init=init)
-        self.U_r = equinox_dense(n, n, use_bias=False, use_equinox_init=init)
         self.U_h = equinox_dense(n, n, use_bias=False, use_equinox_init=init)
-        self.W_z = equinox_dense(n, n, use_equinox_init=init)
-        self.W_r = equinox_dense(n, n, use_equinox_init=init)
+        self.U_f = equinox_dense(n, n, use_bias=False, use_equinox_init=init)
         self.W_h = equinox_dense(n, n, use_equinox_init=init)
+        self.W_f = equinox_dense(n, n, use_equinox_init=init)
 
     @jaxtyped(typechecker=typechecker)
     def __call__(
-        self, carry: GRURecurrentState, input: Float[Array, "Recurrent"]
-    ) -> GRURecurrentState:
-        z = jax.nn.sigmoid(self.W_z(input) + self.U_z(carry))
-        r = jax.nn.sigmoid(self.W_r(input) + self.U_r(carry))
-        h_hat = jax.nn.tanh(self.W_h(input) + self.U_h(r * carry))
-        out = (1 - z) * carry + z * h_hat
-        return out
+        self, carry: MGURecurrentState, input: Float[Array, "Recurrent"]
+    ) -> MGURecurrentState:
+        f = jax.nn.sigmoid(self.W_f(input) + self.U_f(carry))
+        h_hat = jax.nn.tanh(self.W_h(input) + self.U_h(f * carry))
+        h = (1 - f) * carry + f * h_hat
+        return h
 
     @jaxtyped(typechecker=typechecker)
     def initialize_carry(
         self, key: Optional[Shaped[PRNGKeyArray, ""]] = None
-    ) -> GRURecurrentState:
+    ) -> MGURecurrentState:
         return jnp.zeros((self.recurrent_size,))
 
     @nn.nowrap
-    def zero_carry(self) -> GRURecurrentState:
+    def zero_carry(self) -> MGURecurrentState:
         return jnp.zeros((self.recurrent_size,))
 
 
-class GRU(GRAS):
-    """
-    The Gated Recurrent Unit
+class MGU(GRAS):
+    """The Minimal Gated Unit layer
 
-    Paper: https://arxiv.org/abs/1406.1078
+    Paper: https://arxiv.org/abs/1701.03452
     """
 
     recurrent_size: int
@@ -68,14 +64,14 @@ class GRU(GRAS):
     @jaxtyped(typechecker=typechecker)
     def forward_map(
         self, x: Input, key: Optional[Shaped[PRNGKeyArray, ""]] = None
-    ) -> GRURecurrentStateWithReset:
+    ) -> MGURecurrentStateWithReset:
         emb, start = x
         return emb, start
 
     @jaxtyped(typechecker=typechecker)
     def backward_map(
         self,
-        h: GRURecurrentStateWithReset,
+        h: MGURecurrentStateWithReset,
         x: Input,
         key: Optional[Shaped[PRNGKeyArray, ""]] = None,
     ) -> Float[Array, "{self.recurrent_size}"]:
@@ -86,16 +82,16 @@ class GRU(GRAS):
     @jaxtyped(typechecker=typechecker)
     def initialize_carry(
         self, key: Optional[Shaped[PRNGKeyArray, ""]] = None
-    ) -> GRURecurrentStateWithReset:
+    ) -> MGURecurrentStateWithReset:
         return self.algebra.initialize_carry(key)
 
     @nn.nowrap
-    def zero_carry(self) -> GRURecurrentStateWithReset:
+    def zero_carry(self) -> MGURecurrentStateWithReset:
         return self.algebra.zero_carry()
 
     @staticmethod
     def default_algebra(**kwargs):
-        return Resettable(GRUSetAction(**kwargs))
+        return Resettable(MGUSetAction(**kwargs))
 
     @staticmethod
     def default_scan():

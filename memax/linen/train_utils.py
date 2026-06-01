@@ -3,19 +3,19 @@ It includes loss functions, accuracy metrics, and training loops.
 It also provides a straightforward way to construct multi-layer recurrent models."""
 
 from typing import Any
-from beartype.typing import Callable, Dict, Tuple, Optional, Any
 
 import jax
 import jax.numpy as jnp
 import optax
+from beartype.typing import Any, Callable, Dict, Optional, Tuple
 from flax.core import FrozenDict
 from jaxtyping import Array, Shaped
 
-from memax.linen.set_actions.gru import GRU
 from memax.linen.models.residual import ResidualModel
-from memax.linen.semigroups.fart import FARTSemigroup, FART
-from memax.linen.semigroups.lru import LRUSemigroup, LRU
-from memax.linen.semigroups.s6 import S6Semigroup, S6
+from memax.linen.semigroups.fart import FART, FARTSemigroup
+from memax.linen.semigroups.lru import LRU, LRUSemigroup
+from memax.linen.semigroups.s6 import S6, S6Semigroup
+from memax.linen.set_actions.gru import GRU
 
 
 def add_batch_dim(h, batch_size: int, axis: int = 0) -> Shaped[Array, "Batch ..."]:
@@ -39,6 +39,7 @@ def accuracy(
     y_hat: Shaped[Array, "Batch ... Classes"], y: Shaped[Array, "Batch ... Classes"]
 ) -> Shaped[Array, "1"]:
     return jnp.mean(jnp.argmax(y, axis=-1) == jnp.argmax(y_hat, axis=-1))
+
 
 def update_model(
     params: FrozenDict,
@@ -76,13 +77,14 @@ def loss_classify_terminal_output(
     acc = accuracy(y_pred, y)
     return loss, {"loss": loss, "accuracy": acc}
 
+
 def get_semigroups(
     recurrent_size: int,
     semigroup_kwargs: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, FrozenDict]:
     """Returns a dictionary containing all implemented semigroups.
-    
-    This returns the operator used in the scan, not the full recurrent cell. 
+
+    This returns the operator used in the scan, not the full recurrent cell.
     """
     semigroup_kwargs = semigroup_kwargs or {}
     return {
@@ -91,44 +93,48 @@ def get_semigroups(
         "S6": S6Semigroup(recurrent_size, **semigroup_kwargs.get("S6", {})),
     }
 
+
 def get_residual_memory_models(
     hidden: int,
     output: int,
     num_layers: int = 2,
     models: str = "all",
+    input: Optional[int] = None,
     layer_kwargs: Optional[Dict[str, Any]] = None,
-    model_kwargs: Optional[Dict] = None 
+    model_kwargs: Optional[Dict] = None,
 ) -> Dict:
     """Constructs a trunk of stacked memory cells."""
     layer_kwargs = layer_kwargs or {}
-    model_kwargs = model_kwargs or {}
+    model_kwargs = dict(model_kwargs or {})
+    if input is not None:
+        model_kwargs.setdefault("input", input)
     layers = {
         "FART": lambda recurrent_size: FART(
             algebra=FART.default_algebra(recurrent_size=round(recurrent_size**0.5)),
             scan=FART.default_scan(),
             hidden_size=recurrent_size,
             recurrent_size=round(recurrent_size**0.5),
-            **layer_kwargs.get("FART", {})
+            **layer_kwargs.get("FART", {}),
         ),
         "LRU": lambda recurrent_size: LRU(
             algebra=LRU.default_algebra(recurrent_size=recurrent_size),
             scan=LRU.default_scan(),
             hidden_size=recurrent_size,
             recurrent_size=recurrent_size,
-            **layer_kwargs.get("LRU", {})
+            **layer_kwargs.get("LRU", {}),
         ),
         "S6": lambda recurrent_size: S6(
             algebra=S6.default_algebra(recurrent_size=recurrent_size),
             scan=S6.default_scan(),
             hidden_size=recurrent_size,
             recurrent_size=recurrent_size,
-            **layer_kwargs.get("S6", {})
+            **layer_kwargs.get("S6", {}),
         ),
         "GRU": lambda recurrent_size: GRU(
             algebra=GRU.default_algebra(recurrent_size=recurrent_size),
             scan=GRU.default_scan(),
             recurrent_size=recurrent_size,
-            **layer_kwargs.get("GRU", {})
+            **layer_kwargs.get("GRU", {}),
         ),
     }
     if models == "all":

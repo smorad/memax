@@ -1,13 +1,14 @@
+import flax.linen as nn
 import jax
 import jax.numpy as jnp
 from beartype import beartype as typechecker
-from beartype.typing import Callable, List, Optional, Tuple
-from equinox import nn
+from beartype.typing import Optional, Tuple
 from jaxtyping import Array, Float, PRNGKeyArray, Shaped, jaxtyped
 
-from memax.equinox.gras import GRAS
-from memax.equinox.groups import BinaryAlgebra, Module, Resettable, SetAction
-from memax.equinox.scans import set_action_scan
+from memax.linen.gras import GRAS
+from memax.linen.groups import Resettable, SetAction
+from memax.linen.inits import dense as equinox_dense
+from memax.linen.scans import set_action_scan
 from memax.mtypes import Input, StartFlag
 
 SphericalRecurrentState = Float[Array, "Recurrent"]
@@ -22,20 +23,23 @@ class SphericalSetAction(SetAction):
     """
 
     recurrent_size: int
-    project: nn.Linear
-    initial_state: jax.Array
+    sequence_length: int = 1024
+    use_equinox_init: bool = True
 
-    def __init__(self, recurrent_size: int, sequence_length: int = 1024, *, key):
-        self.recurrent_size = recurrent_size
+    def setup(self):
         proj_size = int(self.recurrent_size * (self.recurrent_size - 1) / 2)
-        self.project = nn.Linear(recurrent_size, proj_size, key=key)
+        self.project = equinox_dense(
+            proj_size,
+            self.recurrent_size,
+            use_equinox_init=self.use_equinox_init,
+        )
         self.initial_state = jnp.ones((self.recurrent_size,))
 
     @jaxtyped(typechecker=typechecker)
     def rot(self, z: Array) -> Array:
         q = self.project(z)
         A = jnp.zeros((self.recurrent_size, self.recurrent_size))
-        tri_idx = jnp.triu_indices_from(A, 1)
+        tri_idx = jnp.triu_indices(self.recurrent_size, 1)
         A = A.at[tri_idx].set(q)
         A = A - A.T
         R = jax.scipy.linalg.expm(A)
@@ -54,6 +58,10 @@ class SphericalSetAction(SetAction):
     ) -> SphericalRecurrentState:
         return self.initial_state / jnp.linalg.norm(self.initial_state)
 
+    @nn.nowrap
+    def zero_carry(self) -> SphericalRecurrentState:
+        return jnp.zeros((self.recurrent_size,))
+
 
 class Spherical(GRAS):
     """The Spherical RNN from https://arxiv.org/abs/2407.07239
@@ -62,29 +70,16 @@ class Spherical(GRAS):
     than the spherical semigroup.
     """
 
-    algebra: BinaryAlgebra
-    scan: Callable[
-        [
-            Callable[
-                [SphericalRecurrentStateWithReset, SphericalRecurrentStateWithReset],
-                SphericalRecurrentStateWithReset,
-            ],
-            SphericalRecurrentStateWithReset,
-            SphericalRecurrentStateWithReset,
-        ],
-        SphericalRecurrentStateWithReset,
-    ]
-    W_y: nn.Linear
     recurrent_size: int
     hidden_size: int
+    use_equinox_init: bool = True
 
-    def __init__(self, recurrent_size, hidden_size, key):
-        self.recurrent_size = recurrent_size
-        self.hidden_size = hidden_size
-        keys = jax.random.split(key)
-        self.algebra = Resettable(SphericalSetAction(recurrent_size, key=keys[0]))
-        self.scan = set_action_scan
-        self.W_y = nn.Linear(recurrent_size, hidden_size, key=keys[1])
+    def setup(self):
+        self.W_y = equinox_dense(
+            self.hidden_size,
+            self.recurrent_size,
+            use_equinox_init=self.use_equinox_init,
+        )
 
     @jaxtyped(typechecker=typechecker)
     def forward_map(
@@ -109,3 +104,15 @@ class Spherical(GRAS):
         self, key: Optional[Shaped[PRNGKeyArray, ""]] = None
     ) -> SphericalRecurrentStateWithReset:
         return self.algebra.initialize_carry(key)
+
+    @nn.nowrap
+    def zero_carry(self) -> SphericalRecurrentStateWithReset:
+        return self.algebra.zero_carry()
+
+    @staticmethod
+    def default_algebra(**kwargs):
+        return Resettable(SphericalSetAction(**kwargs))
+
+    @staticmethod
+    def default_scan():
+        return set_action_scan
