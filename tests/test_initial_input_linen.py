@@ -61,8 +61,11 @@ def get_desired_accuracies():
     }
 
 
-def get_models(hidden: int, output: int):
-    models = dict(get_residual_memory_models(hidden, output).items())
+def get_models(hidden: int, output: int, input: int = 3):
+    model_kwargs = {"input": input}
+    models = dict(
+        get_residual_memory_models(hidden, output, model_kwargs=model_kwargs).items()
+    )
     models.update(
         {
             "Elman": ResidualModel(
@@ -73,10 +76,10 @@ def get_models(hidden: int, output: int):
                     scan=Elman.default_scan(),
                     recurrent_size=recurrent_size,
                     hidden_size=recurrent_size,
-                    activation=jax.nn.tanh,
                 ),
                 recurrent_size=hidden,
                 output_size=output,
+                input=input,
             ),
             "LSTM": ResidualModel(
                 make_layer_fn=lambda recurrent_size: LSTM(
@@ -86,6 +89,7 @@ def get_models(hidden: int, output: int):
                 ),
                 recurrent_size=hidden,
                 output_size=output,
+                input=input,
             ),
             "MGU": ResidualModel(
                 make_layer_fn=lambda recurrent_size: MGU(
@@ -95,22 +99,20 @@ def get_models(hidden: int, output: int):
                 ),
                 recurrent_size=hidden,
                 output_size=output,
+                input=input,
             ),
             "IndRNN": ResidualModel(
                 make_layer_fn=lambda recurrent_size: IndRNN(
                     algebra=IndRNN.default_algebra(
                         recurrent_size=recurrent_size,
-                        activation=jax.nn.relu,
-                        max_timesteps=1024,
                     ),
                     scan=IndRNN.default_scan(),
                     recurrent_size=recurrent_size,
                     hidden_size=recurrent_size,
-                    activation=jax.nn.relu,
-                    max_timesteps=1024,
                 ),
                 recurrent_size=hidden,
                 output_size=output,
+                input=input,
             ),
             "Spherical": ResidualModel(
                 make_layer_fn=lambda recurrent_size: Spherical(
@@ -121,6 +123,7 @@ def get_models(hidden: int, output: int):
                 ),
                 recurrent_size=hidden,
                 output_size=output,
+                input=input,
             ),
         }
     )
@@ -136,7 +139,12 @@ def ce_loss(y_hat, y):
     get_models(16, 3 - 1).items(),
 )
 def test_initial_input(
-    model_name, model, epochs=400, num_seqs=5, seq_len=20, input_dims=3
+    model_name,
+    model,
+    epochs=400,
+    num_seqs=5,
+    seq_len=20,
+    input_dims=3,
 ):
     timesteps = num_seqs * seq_len
     seq_idx = jnp.array([seq_len * i for i in range(num_seqs)])

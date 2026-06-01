@@ -1,15 +1,15 @@
-from beartype.typing import Optional, Tuple
-
 import flax.linen as nn
 import jax
 import jax.numpy as jnp
 from beartype import beartype as typechecker
+from beartype.typing import Optional, Tuple
 from jaxtyping import Array, Float, PRNGKeyArray, Shaped, jaxtyped
 
-from memax.mtypes import Input, StartFlag
-from memax.linen.groups import BinaryAlgebra, SetAction, Resettable
 from memax.linen.gras import GRAS
+from memax.linen.groups import BinaryAlgebra, Resettable, SetAction
+from memax.linen.inits import dense as equinox_dense
 from memax.linen.scans import set_action_scan
+from memax.mtypes import Input, StartFlag
 
 GRURecurrentState = Float[Array, "Recurrent"]
 GRURecurrentStateWithReset = Tuple[GRURecurrentState, StartFlag]
@@ -23,24 +23,17 @@ class GRUSetAction(SetAction):
     """
 
     recurrent_size: int
+    use_equinox_init: bool = True
 
     def setup(self):
-        self.U_z = nn.Dense(
-            self.recurrent_size,
-            use_bias=False,
-        )
-        self.U_r = nn.Dense(
-            self.recurrent_size,
-            use_bias=False,
-        )
-        self.U_h = nn.Dense(
-            self.recurrent_size,
-            use_bias=False,
-        )
-
-        self.W_z = nn.Dense(self.recurrent_size)
-        self.W_r = nn.Dense(self.recurrent_size)
-        self.W_h = nn.Dense(self.recurrent_size)
+        n = self.recurrent_size
+        init = self.use_equinox_init
+        self.U_z = equinox_dense(n, n, use_bias=False, use_equinox_init=init)
+        self.U_r = equinox_dense(n, n, use_bias=False, use_equinox_init=init)
+        self.U_h = equinox_dense(n, n, use_bias=False, use_equinox_init=init)
+        self.W_z = equinox_dense(n, n, use_equinox_init=init)
+        self.W_r = equinox_dense(n, n, use_equinox_init=init)
+        self.W_h = equinox_dense(n, n, use_equinox_init=init)
 
     @jaxtyped(typechecker=typechecker)
     def __call__(

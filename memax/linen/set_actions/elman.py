@@ -7,6 +7,7 @@ from jaxtyping import Array, Float, PRNGKeyArray, Shaped, jaxtyped
 
 from memax.linen.gras import GRAS
 from memax.linen.groups import Resettable, SetAction
+from memax.linen.inits import dense as equinox_dense
 from memax.linen.scans import set_action_scan
 from memax.mtypes import Input, StartFlag
 
@@ -23,9 +24,11 @@ class ElmanSetAction(SetAction):
 
     recurrent_size: int
     activation: Callable = jax.nn.tanh
+    use_equinox_init: bool = True
 
     def setup(self):
-        self.U_h = nn.Dense(self.recurrent_size)
+        n = self.recurrent_size
+        self.U_h = equinox_dense(n, n, use_equinox_init=self.use_equinox_init)
 
     @jaxtyped(typechecker=typechecker)
     def __call__(
@@ -54,10 +57,22 @@ class Elman(GRAS):
     recurrent_size: int
     hidden_size: int
     activation: Callable = jax.nn.tanh
+    use_equinox_init: bool = True
 
     def setup(self):
-        self.W_h = nn.Dense(self.recurrent_size, use_bias=False)
-        self.W_y = nn.Dense(self.hidden_size)
+        init = self.use_equinox_init
+        # forward_map input is raw embedding size (set in ResidualModel.map_in)
+        self.W_h = equinox_dense(
+            self.recurrent_size,
+            self.hidden_size,
+            use_bias=False,
+            use_equinox_init=init,
+        )
+        self.W_y = equinox_dense(
+            self.hidden_size,
+            self.recurrent_size,
+            use_equinox_init=init,
+        )
 
     @jaxtyped(typechecker=typechecker)
     def forward_map(

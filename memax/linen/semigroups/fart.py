@@ -1,15 +1,15 @@
-from beartype.typing import Optional, Tuple
-
 import flax.linen as nn
 import jax
 import jax.numpy as jnp
 from beartype import beartype as typechecker
+from beartype.typing import Optional, Tuple
 from jaxtyping import Array, Float, PRNGKeyArray, Shaped, jaxtyped
 
-from memax.mtypes import Input, StartFlag
-from memax.linen.groups import BinaryAlgebra, Semigroup, Resettable
 from memax.linen.gras import GRAS
+from memax.linen.groups import BinaryAlgebra, Resettable, Semigroup
+from memax.linen.inits import dense as equinox_dense
 from memax.linen.scans import semigroup_scan
+from memax.mtypes import Input, StartFlag
 
 FARTRecurrentState = Tuple[Float[Array, "Key Value"], Float[Array, "Key"]]
 FARTRecurrentStateWithReset = Tuple[FARTRecurrentState, StartFlag]
@@ -66,12 +66,15 @@ class FART(GRAS):
     hidden_size: int
     recurrent_size: int
     algebra: BinaryAlgebra
+    use_equinox_init: bool = True
 
     def setup(self):
-        self.K = nn.Dense(self.recurrent_size)
-        self.Q = nn.Dense(self.recurrent_size)
-        self.V = nn.Dense(self.recurrent_size)
-        self.output = nn.Dense(self.hidden_size)
+        init = self.use_equinox_init
+        h, r = self.hidden_size, self.recurrent_size
+        self.K = equinox_dense(r, h, use_bias=False, use_equinox_init=init)
+        self.Q = equinox_dense(r, h, use_bias=False, use_equinox_init=init)
+        self.V = equinox_dense(r, h, use_bias=False, use_equinox_init=init)
+        self.output = equinox_dense(h, r, use_equinox_init=init)
 
     @jaxtyped(typechecker=typechecker)
     def forward_map(

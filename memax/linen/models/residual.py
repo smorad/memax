@@ -1,11 +1,11 @@
-from beartype.typing import Callable, Optional, Tuple
-
 import flax.linen as nn
 import jax
+from beartype.typing import Callable, Optional, Tuple
 from jaxtyping import PRNGKeyArray, Shaped
 
-from memax.mtypes import Input, ResetRecurrentState
 from memax.linen.groups import Module
+from memax.linen.inits import dense as equinox_dense
+from memax.mtypes import Input, ResetRecurrentState
 
 
 class ResidualModel(Module):
@@ -17,20 +17,27 @@ class ResidualModel(Module):
     make_layer_fn: Callable[..., nn.Module]
     output_size: int
     recurrent_size: int
+    input: Optional[int] = None
     num_layers: int = 2
     activation: Callable[[jax.Array], jax.Array] = jax.nn.leaky_relu
+    use_equinox_init: bool = True
 
     def setup(self):
         layers = []
         ff = []
-        self.map_in = nn.Dense(self.recurrent_size)
-        self.map_out = nn.Dense(self.output_size)
+        init = self.use_equinox_init
+        r, o = self.recurrent_size, self.output_size
+        if init and self.input is not None:
+            self.map_in = equinox_dense(r, self.input, use_equinox_init=True)
+        else:
+            self.map_in = nn.Dense(r)
+        self.map_out = equinox_dense(o, r, use_equinox_init=init)
         for _ in range(self.num_layers):
             layers.append(self.make_layer_fn(recurrent_size=self.recurrent_size))
             ff.append(
                 nn.Sequential(
                     [
-                        nn.Dense(self.recurrent_size),
+                        equinox_dense(r, r, use_equinox_init=init),
                         nn.LayerNorm(use_scale=False, use_bias=False),
                         self.activation,
                     ]

@@ -7,6 +7,7 @@ from jaxtyping import Array, Float, PRNGKeyArray, Shaped, jaxtyped
 
 from memax.linen.gras import GRAS
 from memax.linen.groups import Resettable, SetAction
+from memax.linen.inits import dense as equinox_dense
 from memax.linen.scans import set_action_scan
 from memax.mtypes import Input, StartFlag
 
@@ -22,12 +23,15 @@ class MGUSetAction(SetAction):
     """
 
     recurrent_size: int
+    use_equinox_init: bool = True
 
     def setup(self):
-        self.U_h = nn.Dense(self.recurrent_size, use_bias=False)
-        self.U_f = nn.Dense(self.recurrent_size, use_bias=False)
-        self.W_h = nn.Dense(self.recurrent_size)
-        self.W_f = nn.Dense(self.recurrent_size)
+        n = self.recurrent_size
+        init = self.use_equinox_init
+        self.U_h = equinox_dense(n, n, use_bias=False, use_equinox_init=init)
+        self.U_f = equinox_dense(n, n, use_bias=False, use_equinox_init=init)
+        self.W_h = equinox_dense(n, n, use_equinox_init=init)
+        self.W_f = equinox_dense(n, n, use_equinox_init=init)
 
     @jaxtyped(typechecker=typechecker)
     def __call__(

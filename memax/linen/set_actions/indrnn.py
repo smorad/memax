@@ -25,6 +25,7 @@ class IndRNNSetAction(SetAction):
     activation: Callable = jax.nn.relu
     recurrent_min_abs: float = 0.0
     recurrent_max_abs: Optional[float] = None
+    use_equinox_init: bool = True
 
     def setup(self):
         def uniform_0_1(key, shape, dtype=jnp.float32):

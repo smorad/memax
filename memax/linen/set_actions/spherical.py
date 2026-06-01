@@ -7,6 +7,7 @@ from jaxtyping import Array, Float, PRNGKeyArray, Shaped, jaxtyped
 
 from memax.linen.gras import GRAS
 from memax.linen.groups import Resettable, SetAction
+from memax.linen.inits import dense as equinox_dense
 from memax.linen.scans import set_action_scan
 from memax.mtypes import Input, StartFlag
 
@@ -23,10 +24,15 @@ class SphericalSetAction(SetAction):
 
     recurrent_size: int
     sequence_length: int = 1024
+    use_equinox_init: bool = True
 
     def setup(self):
         proj_size = int(self.recurrent_size * (self.recurrent_size - 1) / 2)
-        self.project = nn.Dense(proj_size)
+        self.project = equinox_dense(
+            proj_size,
+            self.recurrent_size,
+            use_equinox_init=self.use_equinox_init,
+        )
         self.initial_state = jnp.ones((self.recurrent_size,))
 
     @jaxtyped(typechecker=typechecker)
@@ -66,9 +72,14 @@ class Spherical(GRAS):
 
     recurrent_size: int
     hidden_size: int
+    use_equinox_init: bool = True
 
     def setup(self):
-        self.W_y = nn.Dense(self.hidden_size)
+        self.W_y = equinox_dense(
+            self.hidden_size,
+            self.recurrent_size,
+            use_equinox_init=self.use_equinox_init,
+        )
 
     @jaxtyped(typechecker=typechecker)
     def forward_map(

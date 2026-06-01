@@ -1,17 +1,18 @@
 # https://github.com/NicolasZucchet/minimal-S6/blob/main/lru/model.py
 from functools import partial
-from beartype.typing import Optional, Tuple
 
 import flax.linen as nn
 import jax
 import jax.numpy as jnp
 from beartype import beartype as typechecker
+from beartype.typing import Optional, Tuple
 from jaxtyping import Array, Float, PRNGKeyArray, Shaped, jaxtyped
 
-from memax.mtypes import Input, StartFlag
-from memax.linen.groups import Semigroup, Resettable
 from memax.linen.gras import GRAS
+from memax.linen.groups import Resettable, Semigroup
+from memax.linen.inits import dense as equinox_dense
 from memax.linen.scans import semigroup_scan
+from memax.mtypes import Input, StartFlag
 
 S6RecurrentState = Tuple[Float[Array, "Recurrent"], Float[Array, "Recurrent"]]
 S6RecurrentStateWithReset = Tuple[S6RecurrentState, StartFlag]
@@ -19,8 +20,8 @@ S6RecurrentStateWithReset = Tuple[S6RecurrentState, StartFlag]
 
 class S6Semigroup(Semigroup):
     """The diagonal S6 semigroup (recurrent update) from https://arxiv.org/abs/2312.00752.
-    
-    This is a diagonal S5/LRU recurrent update with a learnable timestep parameter. """
+
+    This is a diagonal S5/LRU recurrent update with a learnable timestep parameter."""
 
     recurrent_size: int
 
@@ -62,19 +63,24 @@ class S6(GRAS):
 
     hidden_size: int  # output dimensions
     recurrent_size: int  # hidden state dimension
+    use_equinox_init: bool = True
 
     def setup(self):
+        init = self.use_equinox_init
+        h, r = self.hidden_size, self.recurrent_size
         self.A_log = self.param(
             "A_log",
             jax.random.normal,
             (self.recurrent_size,),
         )
-        self.B = nn.Dense(self.recurrent_size)
-        self.C = nn.Dense(self.hidden_size)
-        self.dt = nn.Sequential([
-            nn.Dense(self.recurrent_size),
-            jax.nn.softplus
-        ])
+        self.B = equinox_dense(r, h, use_equinox_init=init)
+        self.C = equinox_dense(h, r, use_equinox_init=init)
+        self.dt = nn.Sequential(
+            [
+                equinox_dense(r, h, use_equinox_init=init),
+                jax.nn.softplus,
+            ]
+        )
 
     @jaxtyped(typechecker=typechecker)
     def forward_map(self, x: Input, key: Optional[Shaped[PRNGKeyArray, ""]] = None):
@@ -101,7 +107,7 @@ class S6(GRAS):
         emb, start = x
         lambdas, lambda_x_Bu = state
         C = self.C(emb)
-        out = C * lambda_x_Bu 
+        out = C * lambda_x_Bu
         return out
 
     @jaxtyped(typechecker=typechecker)
