@@ -36,7 +36,7 @@ We implement both linear and log-complexity recurrent models.
 | Long Short-Term Memory Unit | $O(n)$ | [[paper]](https://ieeexplore.ieee.org/abstract/document/6795963) | [[code]](memax/equinox/set_actions/lstm.py) |
 
 # Datasets
-We provide [datasets](memax/datasets) to test our recurrent models. 
+We provide [datasets](memax/datasets) to test our recurrent models.
 
 ### Sequential MNIST [[HuggingFace]](https://huggingface.co/datasets/ylecun/mnist) [[Code]](memax/datasets/sequential_mnist.py)
 > The recurrent model receives an MNIST image pixel by pixel, and must predict the digit class.
@@ -54,7 +54,7 @@ We provide [datasets](memax/datasets) to test our recurrent models.
 > **Sequence Lengths:** `[20, 100, 1_000]`
 
 # Getting Started
-Install `memax` using pip and git for your specific framework
+Install `memax` using pip for your specific framework:
 ```bash
 pip install "memax[equinox]"
 pip install "memax[flax]"
@@ -63,6 +63,15 @@ If you want to use our dataset and training scripts, install via
 ```bash
 pip install "memax[train,equinox]"
 pip install "memax[train,flax]"
+```
+
+Or install from source using `uv`:
+
+```bash
+uv sync --extra equinox # Only equinox
+uv sync --extra flax # Only flax
+uv sync --extra train --extra equinox
+uv sync --extra train --extra flax
 ```
 
 ## Equinox Quickstart
@@ -76,12 +85,12 @@ from memax.equinox.train_utils import add_batch_dim
 T, F = 5, 6 # time and feature dim
 
 model = get_residual_memory_model(
-    model_name="LRU", input=F, hidden=8, output=1, num_layers=2, 
+    model_name="LRU", input=F, hidden=8, output=1, num_layers=2,
     key=jax.random.key(0)
 )
 
 starts = jnp.array([True, False, False, True, False])
-xs = jnp.zeros((T, F)) 
+xs = jnp.zeros((T, F))
 hs, ys = filter_jit(model)(model.initialize_carry(), (xs, starts))
 last_h = filter_jit(model.latest_recurrent_state)(hs)
 
@@ -101,7 +110,7 @@ python run_linen_experiments.py # flax linen framework
 ```
 
 
-## Custom Architectures 
+## Custom Architectures
 memax uses the [`equinox`](https://github.com/patrick-kidger/equinox) neural network library. See [the semigroups directory](memax/equinox/semigroups) for fast recurrent models that utilize an associative scan. We also provide a beta [`flax.linen`](https://flax-linen.readthedocs.io/en/latest/) API. In this example, we focus on `equinox`.
 
 ```python
@@ -148,7 +157,7 @@ print(debug_shape(h))
 #     (5,) # Start carries for first layer
 #     (5, 16) # Recurrent states of second layer
 #     (5,)) # Start carries for second layer
-# 
+#
 # Do your prediction
 prediction = jax.nn.softmax(y)
 
