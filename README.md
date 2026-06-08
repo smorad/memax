@@ -133,9 +133,6 @@ layer = make_layer(hidden_size, key)
 # Or call the constructor explicitly
 layer = LRU(hidden_size=hidden_size, recurrent_size=hidden_size, key=key)
 
-# Semigroup only (the associative scan operator inside the cell)
-sg = LRUSemigroup(recurrent_size=hidden_size)
-
 sequence_starts = jnp.array([True, False, False, True, False])
 x = jnp.zeros((5, hidden_size))
 inputs = (x, sequence_starts)
@@ -144,7 +141,22 @@ h = eqx.filter_jit(layer.initialize_carry)()
 h, y = eqx.filter_jit(layer)(h, inputs)
 ```
 
-See :mod:`memax.equinox.factory_docs` for how ``hidden_size`` and ``recurrent_size`` differ (especially for matrix-state cells such as FART and GDN). Registered names and variants (e.g. ``Attention-RoPE``) are listed in :mod:`memax.equinox.registry`.
+We provide the barebones recurrent state update in case you want to build a cell around it
+
+```python
+from memax.equinox.scans import semigroup_scan
+
+sg = LRUSemigroup(recurrent_size=hidden_size)
+h0 = sg.initialize_carry()
+step = (
+    jnp.ones(hidden_size, dtype=jnp.complex64),
+    jnp.zeros(hidden_size, dtype=jnp.complex64),
+)
+h1 = sg(h0, step)  # associative product of two algebra elements
+steps = jax.tree.map(lambda s: jnp.broadcast_to(s, (5, *s.shape)), step)
+h_seq = semigroup_scan(sg, h0, steps)  # O(log T) fold over a sequence
+
+```
 
 ## Creating Custom Recurrent Models
 All recurrent cells should follow the [`GRAS`](memax/equinox/gras.py) interface. A recurrent cell consists of an `Algebra`. You can roughly think of the `Algebra` as the function that updates the recurrent state, and the `GRAS` as the `Algebra` and all the associated MLPs/gates. You may reuse our `Algebra`s in your custom `GRAS`, or even write your custom `Algebra`.

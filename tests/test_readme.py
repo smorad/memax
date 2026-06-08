@@ -1,4 +1,4 @@
-def test_readme():
+def test_readme_custom_layer():
     import equinox as eqx
     import jax
     import jax.numpy as jnp
@@ -10,7 +10,6 @@ def test_readme():
 
     layer = make_layer(hidden_size, key)
     layer = LRU(hidden_size=hidden_size, recurrent_size=hidden_size, key=key)
-    sg = LRUSemigroup(recurrent_size=hidden_size)
 
     sequence_starts = jnp.array([True, False, False, True, False])
     x = jnp.zeros((5, hidden_size))
@@ -19,6 +18,28 @@ def test_readme():
     h = eqx.filter_jit(layer.initialize_carry)()
     h, y = eqx.filter_jit(layer)(h, inputs)
     assert y.shape == (5, hidden_size)
+
+
+def test_readme_custom_semigroup():
+    import jax
+    import jax.numpy as jnp
+
+    from memax.equinox.scans import semigroup_scan
+    from memax.equinox.semigroups.lru import LRUSemigroup
+
+    hidden_size = 16
+
+    sg = LRUSemigroup(recurrent_size=hidden_size)
+    h0 = sg.initialize_carry()
+    step = (
+        jnp.ones(hidden_size, dtype=jnp.complex64),
+        jnp.zeros(hidden_size, dtype=jnp.complex64),
+    )
+    h1 = sg(h0, step)
+    steps = jax.tree.map(lambda s: jnp.broadcast_to(s, (5, *s.shape)), step)
+    h_seq = semigroup_scan(sg, h0, steps)
+    assert h1[0].shape == (hidden_size,)
+    assert h_seq[0].shape == (5, hidden_size)
 
 
 def test_readme_quickstart():
@@ -53,5 +74,6 @@ def test_readme_quickstart():
 
 
 if __name__ == "__main__":
-    test_readme()
+    test_readme_custom_layer()
+    test_readme_custom_semigroup()
     test_readme_quickstart()
