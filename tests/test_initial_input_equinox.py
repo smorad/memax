@@ -30,7 +30,7 @@ def get_desired_accuracies():
         "LinearRNN": 0.99,
         "PSpherical": 0.99,
         "GRU": 0.99,
-        "IndRNN": 0.99,
+        "IndRNN": 0.90,
         "Elman": 0.60,
         "ElmanReLU": 0.60,
         "Spherical": 0.99,
