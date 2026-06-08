@@ -127,12 +127,13 @@ from memax.equinox.semigroups.lru import LRU, LRUSemigroup, make_layer
 key = jax.random.key(0)
 hidden_size = 16
 
-# Factory: hidden_size is trunk embedding width; state length defaults match LRU
+# Use the factory to create recurrent layers using defaults
 layer = make_layer(hidden_size, key)
 
-# Or call the constructor explicitly
+# Or call the constructor explicitly for a torch-style init
 layer = LRU(hidden_size=hidden_size, recurrent_size=hidden_size, key=key)
 
+# Run inputs through a single layer, you can add other layers as necessary
 sequence_starts = jnp.array([True, False, False, True, False])
 x = jnp.zeros((5, hidden_size))
 inputs = (x, sequence_starts)
