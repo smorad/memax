@@ -9,13 +9,13 @@ import jax
 import jax.numpy as jnp
 import optax
 import tqdm
-
 import wandb
+
+from memax.datasets.continuous_localization import get_rot_dataset, get_trans_dataset
 from memax.datasets.mnist_math import get_dataset as get_mnist_math
 from memax.datasets.sequential_mnist import get_dataset as get_sequential_mnist
-from memax.datasets.continuous_localization import get_rot_dataset, get_trans_dataset
 from memax.equinox.train_utils import (
-    get_residual_memory_models,
+    build_model,
     loss_classify_terminal_output,
     loss_regress_terminal_output,
     update_model,
@@ -64,7 +64,7 @@ def get_default_loss(dataset_name):
     defaults = {
         "sequential_mnist": "loss_classify_terminal_output",
         "mnist_math_5": "loss_classify_terminal_output",
-        "sequential_rotation": "loss_regress_terminal_output"
+        "sequential_rotation": "loss_regress_terminal_output",
     }
     if dataset_name in defaults:
         return defaults[dataset_name]
@@ -72,6 +72,7 @@ def get_default_loss(dataset_name):
         raise ValueError(
             f"No default loss function defined for dataset: {dataset_name}"
         )
+
 
 def get_default_hyperparameters(dataset_name):
     defaults = {
@@ -174,7 +175,7 @@ def main():
         raise ValueError(f"Unknown dataset: {args.dataset_name}")
 
     feature_in = dataset["x_test"].shape[-1]
-    feature_out = dataset["y_test"].shape[-1] 
+    feature_out = dataset["y_test"].shape[-1]
 
     # Select loss function
     if args.loss_function is None:
@@ -182,7 +183,7 @@ def main():
     else:
         loss_fn_name = args.loss_fn
 
-    if loss_fn_name =="loss_classify_terminal_output":
+    if loss_fn_name == "loss_classify_terminal_output":
         loss_fn = loss_classify_terminal_output
     elif loss_fn_name == "loss_regress_terminal_output":
         loss_fn = loss_regress_terminal_output
@@ -191,7 +192,7 @@ def main():
 
     # Create model
     key = jax.random.PRNGKey(args.seed)
-    models = get_residual_memory_models(
+    models = build_model(
         input=feature_in,
         hidden=args.recurrent_size,
         output=feature_out,

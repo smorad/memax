@@ -1,18 +1,22 @@
-from beartype.typing import Callable, Optional, Tuple
-
 import jax
 import jax.numpy as jnp
 from beartype import beartype as typechecker
+from beartype.typing import Callable, Optional, Tuple
 from equinox import nn
-from jaxtyping import Array, Float, PRNGKeyArray, Shaped, jaxtyped, Bool, Int
+from jaxtyping import Array, Bool, Float, Int, PRNGKeyArray, Shaped, jaxtyped
 
-from memax.equinox.groups import BinaryAlgebra, Semigroup, Resettable
 from memax.equinox.gras import GRAS
-from memax.mtypes import Input, StartFlag
+from memax.equinox.groups import BinaryAlgebra, Resettable, Semigroup
 from memax.equinox.scans import semigroup_scan
+from memax.mtypes import Input, StartFlag
 from memax.utils import apply_rope, apply_sinusoidal_pe, combine_and_right_align
 
-AttentionRecurrentState = Tuple[Float[Array, "Window Recurrent"], Float[Array, "Window Recurrent"], Bool[Array, "Window"], Int[Array, "Window"]]
+AttentionRecurrentState = Tuple[
+    Float[Array, "Window Recurrent"],
+    Float[Array, "Window Recurrent"],
+    Bool[Array, "Window"],
+    Int[Array, "Window"],
+]
 AttentionRecurrentStateWithReset = Tuple[AttentionRecurrentState, StartFlag]
 
 
@@ -21,11 +25,12 @@ class AttentionSemigroup(Semigroup):
 
     See the Stack semigroup for how to implement sliding windows.
     """
+
     window_size: int
     recurrent_size: int
 
     def __init__(self, recurrent_size: int, window_size: int):
-        self.window_size = window_size 
+        self.window_size = window_size
         self.recurrent_size = recurrent_size
 
     @jaxtyped(typechecker=typechecker)
@@ -89,19 +94,31 @@ class Attention(GRAS):
     ]
     algebra: BinaryAlgebra
 
-
-    def __init__(self, recurrent_size: int, window_size: int, positional_embedding: Optional[str], key):
-        """Standard dot-product attention with a sliding window. 
+    def __init__(
+        self,
+        recurrent_size: int,
+        window_size: int,
+        positional_embedding: Optional[str],
+        key,
+    ):
+        """Standard dot-product attention with a sliding window.
         Arguments:
             recurrent_size: The size of the attention embeddings.
             window_size: The size of the attention window (context length).
             rope: Whether to use RoPE embeddings (False means no embeddings).
         """
-        assert positional_embedding in [None, "rope", "alibi"], "positional_embedding must be one of None, 'rope', or 'alibi'"
+        assert positional_embedding in [
+            None,
+            "rope",
+            "alibi",
+        ], "positional_embedding must be one of None, 'rope', or 'alibi'"
         self.recurrent_size = recurrent_size
+        self.readout_dim = recurrent_size
         self.window_size = window_size
         self.positional_embedding = positional_embedding
-        self.algebra = Resettable(AttentionSemigroup(recurrent_size, window_size=window_size))
+        self.algebra = Resettable(
+            AttentionSemigroup(recurrent_size, window_size=window_size)
+        )
         self.scan = semigroup_scan
         keys = jax.random.split(key, 5)
         self.K = nn.Linear(recurrent_size, recurrent_size, use_bias=False, key=keys[0])
@@ -114,20 +131,23 @@ class Attention(GRAS):
     ) -> AttentionRecurrentStateWithReset:
         emb, start = x
         # Add Attention dim for concat
-        mask = jnp.concatenate([
-            jnp.zeros((self.window_size - 1), dtype=bool),
-            jnp.ones((1,), dtype=bool)
-        ])
+        mask = jnp.concatenate(
+            [jnp.zeros((self.window_size - 1), dtype=bool), jnp.ones((1,), dtype=bool)]
+        )
         k = self.K(emb)
         v = self.V(emb)
-        key = jnp.concatenate([
-            jnp.zeros((self.window_size - 1, *emb.shape), dtype=emb.dtype),
-            k.reshape(1, -1)
-        ])
-        value = jnp.concatenate([
-            jnp.zeros((self.window_size - 1, *emb.shape), dtype=emb.dtype),
-            v.reshape(1, -1)
-        ])
+        key = jnp.concatenate(
+            [
+                jnp.zeros((self.window_size - 1, *emb.shape), dtype=emb.dtype),
+                k.reshape(1, -1),
+            ]
+        )
+        value = jnp.concatenate(
+            [
+                jnp.zeros((self.window_size - 1, *emb.shape), dtype=emb.dtype),
+                v.reshape(1, -1),
+            ]
+        )
         ts = jnp.ones((self.window_size), dtype=jnp.int32)
         return (key, value, mask, ts), start
 
@@ -153,7 +173,7 @@ class Attention(GRAS):
         n, k, t, s, h = 1, 1, 1, self.window_size, self.recurrent_size
         bias = None
         if self.positional_embedding == "alibi":
-            m = 2 ** -8
+            m = 2**-8
             # T-1 to 0
             bias = m * (ts[0] + jnp.arange(-s + 1, 1))
         elif self.positional_embedding == "rope":
@@ -162,7 +182,7 @@ class Attention(GRAS):
         mask = mask.reshape(n, t, s)
         bias = bias if bias is None else bias.reshape(n, t, s)
         K = K.reshape(s, k, h)
-        q = q.reshape(t, n, h) # Only for current timestep
+        q = q.reshape(t, n, h)  # Only for current timestep
         V = V.reshape(s, k, h)
         z = jax.nn.dot_product_attention(q, K, V, mask=mask, bias=bias)
         return z.reshape(-1)

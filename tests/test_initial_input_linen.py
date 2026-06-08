@@ -19,7 +19,7 @@ from memax.linen.train_utils import get_residual_memory_models
 def get_desired_accuracies_equinox():
     # Kept in sync with `tests/test_initial_input_equinox.py`.
     return {
-        "MLP": 0,
+        "Identity": 0,
         "Stack": 0,
         "Attention": 0.99,
         "Attention-RoPE": 0.99,

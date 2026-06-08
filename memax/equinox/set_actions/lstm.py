@@ -105,6 +105,7 @@ class LSTM(GRAS):
 
     def __init__(self, recurrent_size, key):
         keys = jax.random.split(key, 3)
+        self.readout_dim = recurrent_size
         self.algebra = Resettable(LSTMSetAction(recurrent_size, key=keys[0]))
         self.scan = set_action_scan
 

@@ -1,16 +1,15 @@
-from beartype.typing import Callable, List, Optional, Tuple
-
 import equinox as eqx
 import jax
 import jax.numpy as jnp
 from beartype import beartype as typechecker
+from beartype.typing import Callable, List, Optional, Tuple
 from equinox import nn
 from jaxtyping import Array, Float, PRNGKeyArray, Shaped, jaxtyped
 
-from memax.equinox.groups import BinaryAlgebra, Semigroup, Resettable
 from memax.equinox.gras import GRAS
-from memax.mtypes import Input, StartFlag
+from memax.equinox.groups import BinaryAlgebra, Resettable, Semigroup
 from memax.equinox.scans import semigroup_scan
+from memax.mtypes import Input, StartFlag
 
 RotationMatrix = Float[Array, "Hidden Hidden"]
 SphericalRecurrentState = RotationMatrix
@@ -59,16 +58,15 @@ class PSpherical(GRAS):
     algebra: BinaryAlgebra
     initial_vector: jax.Array
     project: nn.Linear
-    output: nn.Linear
 
     def __init__(self, recurrent_size, hidden_size, key):
         self.recurrent_size = recurrent_size
         self.hidden_size = hidden_size
+        self.readout_dim = recurrent_size
         keys = jax.random.split(key)
         self.proj_size = int(self.recurrent_size * (self.recurrent_size - 1) / 2)
         self.project = nn.Linear(hidden_size, self.proj_size, key=keys[0])
         self.algebra = Resettable(PSphericalSemigroup(recurrent_size))
-        self.output = nn.Linear(recurrent_size, hidden_size, key=keys[1])
         self.scan = semigroup_scan
         self.initial_vector = jnp.ones(self.recurrent_size)
 
@@ -96,12 +94,12 @@ class PSpherical(GRAS):
         h: SphericalRecurrentStateWithReset,
         x: Input,
         key: Optional[Shaped[PRNGKeyArray, ""]] = None,
-    ) -> Float[Array, "{self.hidden_size}"]:
+    ) -> Float[Array, "{self.readout_dim}"]:
         emb, start = x
         state, reset_carry = h
 
         normed = self.initial_vector / jnp.linalg.norm(self.initial_vector)
-        return self.output(state @ normed)
+        return state @ normed
 
     @jaxtyped(typechecker=typechecker)
     def initialize_carry(

@@ -1,15 +1,14 @@
-from beartype.typing import Callable, Optional, Tuple
-
 import jax
 import jax.numpy as jnp
 from beartype import beartype as typechecker
+from beartype.typing import Callable, Optional, Tuple
 from equinox import nn
-from jaxtyping import Array, Float, PRNGKeyArray, Shaped, jaxtyped, Bool
+from jaxtyping import Array, Bool, Float, PRNGKeyArray, Shaped, jaxtyped
 
-from memax.equinox.groups import BinaryAlgebra, Semigroup, Resettable
 from memax.equinox.gras import GRAS
-from memax.mtypes import Input, StartFlag
+from memax.equinox.groups import BinaryAlgebra, Resettable, Semigroup
 from memax.equinox.scans import semigroup_scan
+from memax.mtypes import Input, StartFlag
 from memax.utils import combine_and_right_align
 
 StackRecurrentState = Tuple[Float[Array, "Stack Recurrent"], Bool[Array, "Stack"]]
@@ -24,6 +23,7 @@ class StackSemigroup(Semigroup):
 
     Applications include dot-product attention, RWKV, etc.
     """
+
     stack_size: int
     recurrent_size: int
 
@@ -36,7 +36,7 @@ class StackSemigroup(Semigroup):
         self, key: Optional[Shaped[PRNGKeyArray, ""]] = None
     ) -> StackRecurrentState:
         stack = jnp.zeros((self.stack_size, self.recurrent_size))
-        #return stack
+        # return stack
         # Valid (non-pad) mask
         mask = jnp.zeros((self.stack_size,), dtype=bool)
         return (stack, mask)
@@ -67,7 +67,7 @@ class StackSemigroup(Semigroup):
 
 class Stack(GRAS):
     """A fairly straightforward "recurrent" model that merely keeps a sliding
-    window of the past. You may use this model as a blueprint to implement 
+    window of the past. You may use this model as a blueprint to implement
     "less recurrent" models that rely on more than the current input and recurrent state.
 
     Applications include dot-product attention, RWKV, etc.
@@ -88,14 +88,14 @@ class Stack(GRAS):
     ]
     algebra: BinaryAlgebra
 
-    g: nn.Sequential
-
     def __init__(self, recurrent_size, window_size, key):
         self.recurrent_size = recurrent_size
         self.stack_size = window_size
-        self.algebra = Resettable(StackSemigroup(recurrent_size, stack_size=window_size))
+        self.readout_dim = recurrent_size * window_size
+        self.algebra = Resettable(
+            StackSemigroup(recurrent_size, stack_size=window_size)
+        )
         self.scan = semigroup_scan
-        self.g = nn.Linear(recurrent_size * window_size, recurrent_size, key=key)
 
     @jaxtyped(typechecker=typechecker)
     def forward_map(
@@ -103,15 +103,16 @@ class Stack(GRAS):
     ) -> StackRecurrentStateWithReset:
         emb, start = x
         # Add stack dim for concat
-        #return emb.reshape(1, -1), start
-        mask = jnp.concatenate([
-            jnp.zeros((self.stack_size - 1), dtype=bool),
-            jnp.ones((1,), dtype=bool)
-        ])
-        emb = jnp.concatenate([
-            jnp.zeros((self.stack_size - 1, *emb.shape), dtype=emb.dtype),
-            emb.reshape(1, -1)
-        ])
+        # return emb.reshape(1, -1), start
+        mask = jnp.concatenate(
+            [jnp.zeros((self.stack_size - 1), dtype=bool), jnp.ones((1,), dtype=bool)]
+        )
+        emb = jnp.concatenate(
+            [
+                jnp.zeros((self.stack_size - 1, *emb.shape), dtype=emb.dtype),
+                emb.reshape(1, -1),
+            ]
+        )
         return (emb, mask), start
 
     @jaxtyped(typechecker=typechecker)
@@ -120,13 +121,11 @@ class Stack(GRAS):
         h: StackRecurrentStateWithReset,
         x: Input,
         key: Optional[Shaped[PRNGKeyArray, ""]] = None,
-    ) -> Float[Array, "{self.recurrent_size}"]:
+    ) -> Float[Array, "{self.readout_dim}"]:
         emb, start = x
         state, reset_carry = h
         z, mask = state
-        # You can do something more intelligent with masking if needed
-        z = self.g(z.reshape(-1))
-        return z
+        return z.reshape(-1)
 
     @jaxtyped(typechecker=typechecker)
     def initialize_carry(

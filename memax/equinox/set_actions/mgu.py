@@ -1,15 +1,14 @@
-from beartype.typing import Callable, Optional, Tuple
-
 import jax
 import jax.numpy as jnp
 from beartype import beartype as typechecker
+from beartype.typing import Callable, Optional, Tuple
 from equinox import nn
 from jaxtyping import Array, Float, PRNGKeyArray, Shaped, jaxtyped
 
-from memax.equinox.groups import BinaryAlgebra, SetAction, Resettable
 from memax.equinox.gras import GRAS
-from memax.mtypes import Input, StartFlag
+from memax.equinox.groups import BinaryAlgebra, Resettable, SetAction
 from memax.equinox.scans import set_action_scan
+from memax.mtypes import Input, StartFlag
 
 MGURecurrentState = Float[Array, "Recurrent"]
 MGURecurrentStateWithReset = Tuple[MGURecurrentState, StartFlag]
@@ -78,6 +77,7 @@ class MGU(GRAS):
 
     def __init__(self, recurrent_size, key):
         self.recurrent_size = recurrent_size
+        self.readout_dim = recurrent_size
         keys = jax.random.split(key, 3)
         self.algebra = Resettable(MGUSetAction(recurrent_size, key=keys[0]))
         self.scan = set_action_scan
