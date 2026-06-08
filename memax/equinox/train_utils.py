@@ -2,8 +2,6 @@
 It includes loss functions, accuracy metrics, and training loops.
 It also provides a straightforward way to construct multi-layer recurrent models."""
 
-import math
-
 import equinox as eqx
 import jax
 import jax.numpy as jnp
@@ -14,27 +12,12 @@ from jaxtyping import Array, Shaped
 from memax.equinox.groups import Module
 from memax.equinox.models.multihead_residual import MultiHeadResidualModel
 from memax.equinox.models.residual import ResidualModel
-from memax.equinox.semigroups.attn import Attention, AttentionSemigroup
-from memax.equinox.semigroups.delta import DeltaNet, DeltaNetSemigroup
-from memax.equinox.semigroups.deltap import DeltaProduct, DeltaProductSemigroup
-from memax.equinox.semigroups.fart import FART, FARTSemigroup
-from memax.equinox.semigroups.ffm import FFM, FFMSemigroup
-from memax.equinox.semigroups.fwp import FWP, FWPSemigroup
-from memax.equinox.semigroups.gdn import GDN, GDNSemigroup
-from memax.equinox.semigroups.identity import Identity
-from memax.equinox.semigroups.lrnn import LinearRecurrent, LinearRNNSemigroup
-from memax.equinox.semigroups.lru import LRU, LRUSemigroup
-from memax.equinox.semigroups.nmax import NMax, NMaxSemigroup
-from memax.equinox.semigroups.s6 import S6, S6Semigroup
-from memax.equinox.semigroups.spherical import PSpherical, PSphericalSemigroup
-from memax.equinox.semigroups.stack import Stack, StackSemigroup
-from memax.equinox.semigroups.ttt import TTTLinear, TTTLinearSemigroup
-from memax.equinox.set_actions.elman import Elman
-from memax.equinox.set_actions.gru import GRU
-from memax.equinox.set_actions.indrnn import IndRNN
-from memax.equinox.set_actions.lstm import LSTM
-from memax.equinox.set_actions.mgu import MGU
-from memax.equinox.set_actions.spherical import Spherical
+from memax.equinox.registry import (
+    LAYER_REGISTRY,
+    SEMIGROUP_REGISTRY,
+    LayerFn,
+    list_layers,
+)
 
 
 def add_batch_dim(h, batch_size: int, axis: int = 0) -> Shaped[Array, "Batch ..."]:
@@ -232,45 +215,24 @@ def get_semigroups(
     """Returns a dictionary containing all implemented semigroups.
 
     This returns the operator used in the scan, not the full recurrent cell.
+    ``recurrent_size`` is the semigroup state dimension (for matrix cells, the
+    matrix side length — see :mod:`memax.equinox.factory_docs`).
     """
     semigroup_kwargs = semigroup_kwargs or {}
     return {
-        "PSpherical": PSphericalSemigroup(
-            recurrent_size, **semigroup_kwargs.get("PSpherical", {})
-        ),
-        "FFM": FFMSemigroup(
+        name: factory(
             recurrent_size,
-            recurrent_size,
-            recurrent_size,
-            **semigroup_kwargs.get("FFM", {}),
             key=key,
-        ),
-        "FART": FARTSemigroup(recurrent_size, **semigroup_kwargs.get("FART", {})),
-        "LinearRNN": LinearRNNSemigroup(
-            recurrent_size, **semigroup_kwargs.get("LinearRNN", {})
-        ),
-        "LRU": LRUSemigroup(recurrent_size, **semigroup_kwargs.get("LRU", {})),
-        "S6": S6Semigroup(recurrent_size, **semigroup_kwargs.get("S6", {})),
-        "NMax": NMaxSemigroup(recurrent_size, **semigroup_kwargs.get("NMax", {})),
-        "FWP": FWPSemigroup(recurrent_size, **semigroup_kwargs.get("FWP", {})),
-        "DeltaNet": DeltaNetSemigroup(
-            recurrent_size, **semigroup_kwargs.get("DeltaNet", {})
-        ),
-        "DeltaProduct": DeltaProductSemigroup(
-            recurrent_size, **semigroup_kwargs.get("DeltaProduct", {})
-        ),
-        "TTTL": TTTLinearSemigroup(recurrent_size, **semigroup_kwargs.get("TTTL", {})),
-        "TTTL-RoPE": TTTLinearSemigroup(
-            recurrent_size, **semigroup_kwargs.get("TTTL", {"use_rope": True})
-        ),
-        "GDN": GDNSemigroup(recurrent_size, **semigroup_kwargs.get("GDN", {})),
-        "Stack": StackSemigroup(
-            recurrent_size, **semigroup_kwargs.get("Stack", {"stack_size": 4})
-        ),
-        "Attention": AttentionSemigroup(
-            recurrent_size, **semigroup_kwargs.get("Attention", {"window_size": 4})
-        ),
+            **semigroup_kwargs.get(name, {}),
+        )
+        for name, factory in SEMIGROUP_REGISTRY.items()
     }
+
+
+def _bind_layer_kwargs(factory: LayerFn, overrides: Dict[str, Any]) -> LayerFn:
+    if not overrides:
+        return factory
+    return lambda hidden_size, key, fn=factory, kw=overrides: fn(hidden_size, key, **kw)
 
 
 def build_named_model(
@@ -310,6 +272,7 @@ def build_model(
     layer_kwargs: Optional[Dict[str, Any]] = None,
     model_kwargs: Optional[Dict] = None,
     num_heads: Optional[int] = None,
+    extra_layers: Optional[Dict[str, LayerFn]] = None,
 ) -> Dict[str, Module]:
     """Build residual-trunk sequence models from registered memory cells.
 
@@ -320,158 +283,24 @@ def build_model(
 
     Returns a name-to-module mapping. With ``models="all"``, every registered cell is
     included; otherwise only the requested names are built.
+
+    Per-cell ``layer_kwargs`` override factory defaults (e.g. ``recurrent_size``).
+    See :mod:`memax.equinox.factory_docs` for sizing conventions — matrix-state
+    cells use ``O(recurrent_size**2)`` memory, not ``O(hidden)``.
     """
     layer_kwargs = layer_kwargs or {}
     model_kwargs = model_kwargs or {}
+    registry = {**LAYER_REGISTRY, **(extra_layers or {})}
     layers = {
-        # for debug
-        "Identity": lambda recurrent_size, key: Identity(
-            recurrent_size=recurrent_size,
-            key=key,
-            **layer_kwargs.get("Identity", {}),
-        ),
-        # semigroups
-        "NMax": lambda recurrent_size, key: NMax(
-            recurrent_size=recurrent_size, key=key
-        ),
-        "FART": lambda recurrent_size, key: FART(
-            hidden_size=recurrent_size,
-            recurrent_size=round(recurrent_size**0.5),
-            key=key,
-            **layer_kwargs.get("FART", {}),
-        ),
-        "FWP": lambda recurrent_size, key: FWP(
-            hidden_size=recurrent_size,
-            recurrent_size=round(recurrent_size**0.5),
-            key=key,
-            **layer_kwargs.get("FWP", {}),
-        ),
-        "DeltaNet": lambda recurrent_size, key: DeltaNet(
-            hidden_size=recurrent_size,
-            recurrent_size=round(recurrent_size**0.5),
-            key=key,
-            **layer_kwargs.get("DeltaNet", {}),
-        ),
-        "DeltaProduct": lambda recurrent_size, key: DeltaProduct(
-            hidden_size=recurrent_size,
-            recurrent_size=round(recurrent_size**0.5),
-            rank=4,
-            key=key,
-            **layer_kwargs.get("DeltaProduct", {}),
-        ),
-        "GDN": lambda recurrent_size, key: GDN(
-            hidden_size=recurrent_size,
-            recurrent_size=round(recurrent_size**0.5),
-            key=key,
-            **layer_kwargs.get("GDN", {}),
-        ),
-        "TTTL": lambda recurrent_size, key: TTTLinear(
-            hidden_size=recurrent_size,
-            recurrent_size=round(recurrent_size**0.5),
-            key=key,
-            **layer_kwargs.get("TTTL", {}),
-        ),
-        "TTTL-RoPE": lambda recurrent_size, key: TTTLinear(
-            hidden_size=recurrent_size,
-            recurrent_size=math.ceil(recurrent_size**0.5 / 2) * 2,
-            key=key,
-            positional_embedding="rope",
-            **layer_kwargs.get("TTTL-RoPE", {}),
-        ),
-        "FFM": lambda recurrent_size, key: FFM(
-            hidden_size=recurrent_size,
-            context_size=recurrent_size // 4,
-            trace_size=4,
-            key=key,
-            **layer_kwargs.get("FFM", {}),
-        ),
-        "S6": lambda recurrent_size, key: S6(
-            hidden_size=recurrent_size,
-            recurrent_size=recurrent_size,
-            key=key,
-            **layer_kwargs.get("S6", {}),
-        ),
-        "PSpherical": lambda recurrent_size, key: PSpherical(
-            recurrent_size=round(recurrent_size**0.5),
-            hidden_size=recurrent_size,
-            key=key,
-            **layer_kwargs.get("PSpherical", {}),
-        ),
-        "LRU": lambda recurrent_size, key: LRU(
-            hidden_size=recurrent_size,
-            recurrent_size=recurrent_size,
-            key=key,
-            **layer_kwargs.get("LRU", {}),
-        ),
-        "LinearRNN": lambda recurrent_size, key: LinearRecurrent(
-            recurrent_size=recurrent_size, key=key, **layer_kwargs.get("LinearRNN", {})
-        ),
-        "Stack": lambda recurrent_size, key: Stack(
-            recurrent_size=recurrent_size,
-            key=key,
-            **layer_kwargs.get("Stack", {"window_size": 4}),
-        ),
-        "Attention": lambda recurrent_size, key: Attention(
-            recurrent_size=recurrent_size,
-            positional_embedding=None,
-            key=key,
-            **layer_kwargs.get("Attention", {"window_size": 20}),
-        ),
-        "Attention-RoPE": lambda recurrent_size, key: Attention(
-            recurrent_size=recurrent_size,
-            positional_embedding="rope",
-            key=key,
-            **layer_kwargs.get("Attention-RoPE", {"window_size": 20}),
-        ),
-        "Attention-ALiBi": lambda recurrent_size, key: Attention(
-            recurrent_size=recurrent_size,
-            positional_embedding="alibi",
-            key=key,
-            **layer_kwargs.get("Attention-ALiBi", {"window_size": 20}),
-        ),
-        # set actions
-        "GRU": lambda recurrent_size, key: GRU(
-            recurrent_size=recurrent_size, key=key, **layer_kwargs.get("GRU", {})
-        ),
-        "Elman": lambda recurrent_size, key: Elman(
-            hidden_size=recurrent_size,
-            recurrent_size=recurrent_size,
-            key=key,
-            **layer_kwargs.get("Elman", {}),
-        ),
-        "ElmanReLU": lambda recurrent_size, key: Elman(
-            hidden_size=recurrent_size,
-            recurrent_size=recurrent_size,
-            key=key,
-            activation=jax.nn.relu,
-            **layer_kwargs.get("ElmanReLU", {}),
-        ),
-        "IndRNN": lambda recurrent_size, key: IndRNN(
-            hidden_size=recurrent_size,
-            recurrent_size=recurrent_size,
-            key=key,
-            activation=jax.nn.relu,
-            **layer_kwargs.get("IndRNN", {}),
-        ),
-        "Spherical": lambda recurrent_size, key: Spherical(
-            hidden_size=recurrent_size,
-            recurrent_size=recurrent_size,
-            key=key,
-            **layer_kwargs.get("Spherical", {}),
-        ),
-        "MGU": lambda recurrent_size, key: MGU(
-            recurrent_size=recurrent_size, key=key, **layer_kwargs.get("MGU", {})
-        ),
-        "LSTM": lambda recurrent_size, key: LSTM(
-            recurrent_size=recurrent_size, key=key, **layer_kwargs.get("LSTM", {})
-        ),
+        name: _bind_layer_kwargs(factory, layer_kwargs.get(name, {}))
+        for name, factory in registry.items()
     }
 
     def make_trunk(make_layer_fn):
         trunk_kwargs = dict(
             make_layer_fn=make_layer_fn,
             input_size=input,
-            recurrent_size=hidden,
+            hidden_size=hidden,
             output_size=output,
             num_layers=num_layers,
             key=key,
@@ -483,4 +312,9 @@ def build_model(
 
     if models == "all":
         return {name: make_trunk(fn) for name, fn in layers.items()}
+
+    missing = [name for name in models if name not in layers]
+    if missing:
+        available = ", ".join(sorted(list_layers()))
+        raise KeyError(f"Unknown model(s): {missing}. Available layers: {available}")
     return {name: make_trunk(layers[name]) for name in models}

@@ -172,3 +172,34 @@ class FFM(GRAS):
         self, key: Optional[Shaped[PRNGKeyArray, ""]] = None
     ) -> FFMRecurrentStateWithReset:
         return self.algebra.initialize_carry(key)
+
+
+def make_layer(hidden_size: int, key, **overrides):
+    """Build FFM for a residual trunk.
+
+    ``hidden_size`` is the trunk embedding width. State uses separate
+    ``trace_size`` and ``context_size`` (defaults ``4`` and ``hidden_size // 4``),
+    not a single ``recurrent_size`` vector.
+    """
+    return FFM(
+        hidden_size=hidden_size,
+        context_size=hidden_size // 4,
+        trace_size=4,
+        key=key,
+        **overrides,
+    )
+
+
+def make_semigroup(recurrent_size: int, *, key, **overrides):
+    """Build the FFM semigroup.
+
+    All three size arguments default to ``recurrent_size`` (trace, context, and
+    hidden axes for the semigroup test harness).
+    """
+    return FFMSemigroup(
+        recurrent_size,
+        recurrent_size,
+        recurrent_size,
+        key=key,
+        **overrides,
+    )

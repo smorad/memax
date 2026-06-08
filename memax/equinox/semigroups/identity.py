@@ -90,3 +90,15 @@ class Identity(GRAS):
         self, key: Optional[Shaped[PRNGKeyArray, ""]] = None
     ) -> IdentityRecurrentStateWithReset:
         return self.algebra.initialize_carry(key)
+
+
+def make_layer(hidden_size: int, key, **overrides):
+    """Build Identity for a residual trunk (memory-free baseline).
+
+    ``hidden_size`` is the trunk embedding width and readout dimension.
+    """
+    return Identity(
+        recurrent_size=hidden_size,
+        key=key,
+        **overrides,
+    )

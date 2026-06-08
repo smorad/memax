@@ -114,3 +114,11 @@ class GRU(GRAS):
         self, key: Optional[Shaped[PRNGKeyArray, ""]] = None
     ) -> GRURecurrentStateWithReset:
         return self.algebra.initialize_carry(key)
+
+
+def make_layer(hidden_size, key, **overrides):
+    """Build GRU for a residual trunk.
+
+    ``hidden_size`` is the trunk embedding width and the hidden state length.
+    """
+    return GRU(recurrent_size=hidden_size, key=key, **overrides)

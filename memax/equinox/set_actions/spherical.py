@@ -108,3 +108,14 @@ class Spherical(GRAS):
         self, key: Optional[Shaped[PRNGKeyArray, ""]] = None
     ) -> SphericalRecurrentStateWithReset:
         return self.algebra.initialize_carry(key)
+
+
+def make_layer(hidden_size, key, **overrides):
+    """Build Spherical set-action for a residual trunk.
+
+    ``hidden_size`` is the trunk embedding width. ``recurrent_size`` (state on the
+    sphere) defaults to ``hidden_size``.
+    """
+    return Spherical(
+        hidden_size=hidden_size, recurrent_size=hidden_size, key=key, **overrides
+    )

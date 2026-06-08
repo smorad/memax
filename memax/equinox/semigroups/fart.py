@@ -118,3 +118,28 @@ class FART(GRAS):
         # inputs should be of shape [*batch, time, feature]
         # recurrent states should be of shape [*batch, 1, feature]
         return self.algebra.initialize_carry(key)
+
+
+def make_layer(hidden_size: int, key, **overrides):
+    """Build FART for a residual trunk.
+
+    ``hidden_size`` is the trunk embedding width. ``recurrent_size`` (state side
+    length) defaults to ``round(hidden_size**0.5)``; override via ``**overrides``.
+    The carry includes a ``(recurrent_size, recurrent_size)`` KV sum matrix —
+    memory scales as ``O(recurrent_size**2)``, not ``O(hidden_size)``.
+    """
+    return FART(
+        hidden_size=hidden_size,
+        recurrent_size=round(hidden_size**0.5),
+        key=key,
+        **overrides,
+    )
+
+
+def make_semigroup(recurrent_size: int, *, key=None, **overrides):
+    """Build the FART semigroup (scan operator only).
+
+    ``recurrent_size`` is the matrix side length (``n × n`` KV accumulator), not
+    trunk ``hidden_size``. Memory scales as ``O(recurrent_size**2)``.
+    """
+    return FARTSemigroup(recurrent_size, **overrides)

@@ -123,3 +123,22 @@ class S6(GRAS):
         self, key: Optional[Shaped[PRNGKeyArray, ""]] = None
     ) -> S6RecurrentStateWithReset:
         return self.algebra.initialize_carry(key)
+
+
+def make_layer(hidden_size: int, key, **overrides):
+    """Build S6 for a residual trunk.
+
+    ``hidden_size`` is the trunk embedding width. ``recurrent_size`` (SSM state
+    length) defaults to ``hidden_size``.
+    """
+    return S6(
+        hidden_size=hidden_size,
+        recurrent_size=hidden_size,
+        key=key,
+        **overrides,
+    )
+
+
+def make_semigroup(recurrent_size: int, *, key=None, **overrides):
+    """Build the S6 semigroup. ``recurrent_size`` is the SSM state length."""
+    return S6Semigroup(recurrent_size, **overrides)

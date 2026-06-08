@@ -101,3 +101,17 @@ class NMax(GRAS):
         self, key: Optional[Shaped[PRNGKeyArray, ""]] = None
     ) -> NMaxRecurrentStateWithReset:
         return self.algebra.initialize_carry(key)
+
+
+def make_layer(hidden_size: int, key, **overrides):
+    """Build NMax for a residual trunk. ``hidden_size`` is the state vector length."""
+    return NMax(
+        recurrent_size=hidden_size,
+        key=key,
+        **overrides,
+    )
+
+
+def make_semigroup(recurrent_size: int, *, key=None, **overrides):
+    """Build the NMax semigroup. ``recurrent_size`` is the state vector length."""
+    return NMaxSemigroup(recurrent_size, **overrides)

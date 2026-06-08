@@ -192,3 +192,35 @@ class Attention(GRAS):
         self, key: Optional[Shaped[PRNGKeyArray, ""]] = None
     ) -> AttentionRecurrentStateWithReset:
         return self.algebra.initialize_carry(key)
+
+
+def make_layer(
+    hidden_size: int,
+    key,
+    *,
+    positional_embedding=None,
+    window_size: int = 20,
+    **overrides,
+):
+    """Build Attention for a residual trunk.
+
+    ``hidden_size`` is the per-position feature size in the sliding window carry
+    ``(window_size, hidden_size)``. Set ``positional_embedding`` to ``"rope"`` or
+    ``"alibi"`` for positional variants (registry names ``Attention-RoPE``,
+    ``Attention-ALiBi``).
+    """
+    return Attention(
+        recurrent_size=hidden_size,
+        positional_embedding=positional_embedding,
+        window_size=window_size,
+        key=key,
+        **overrides,
+    )
+
+
+def make_semigroup(recurrent_size: int, *, key=None, **overrides):
+    """Build the Attention semigroup. ``recurrent_size`` is the per-slot feature size."""
+    return AttentionSemigroup(
+        recurrent_size,
+        **{"window_size": 4, **overrides},
+    )

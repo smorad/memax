@@ -149,3 +149,18 @@ class IndRNN(GRAS):
         self, key: Optional[Shaped[PRNGKeyArray, ""]] = None
     ) -> IndRNNRecurrentStateWithReset:
         return self.algebra.initialize_carry(key)
+
+
+def make_layer(hidden_size, key, activation=jax.nn.relu, **overrides):
+    """Build IndRNN for a residual trunk.
+
+    ``hidden_size`` is the trunk embedding width. ``recurrent_size`` (state length)
+    defaults to ``hidden_size``.
+    """
+    return IndRNN(
+        hidden_size=hidden_size,
+        recurrent_size=hidden_size,
+        activation=activation,
+        key=key,
+        **overrides,
+    )

@@ -113,82 +113,38 @@ python run_linen_experiments.py # flax linen framework
 
 
 ## Custom Architectures
-memax uses the [`equinox`](https://github.com/patrick-kidger/equinox) neural network library. See [the semigroups directory](memax/equinox/semigroups) for fast recurrent models that utilize an associative scan. We also provide a beta [`flax.linen`](https://flax-linen.readthedocs.io/en/latest/) API. In this example, we focus on `equinox`.
+memax uses the [`equinox`](https://github.com/patrick-kidger/equinox) neural network library. See [the semigroups directory](memax/equinox/semigroups) for fast recurrent models that utilize an associative scan. We also provide a beta [`flax.linen`](https://flax-linen.readthedocs.io/en/latest/) API.
+
+Each cell is a [`GRAS`](memax/equinox/gras.py) module you can use on its own. Use ``make_layer`` for sizing defaults, or construct the class directly:
 
 ```python
 import equinox as eqx
 import jax
 import jax.numpy as jnp
 
-from memax.equinox.set_actions.gru import GRU
-from memax.equinox.models.residual import ResidualModel
-from memax.equinox.semigroups.lru import LRU, LRUSemigroup
-from memax.utils import debug_shape
+from memax.equinox.semigroups.lru import LRU, LRUSemigroup, make_layer
 
-# You can pack multiple subsequences into a single sequence using the start flag
+key = jax.random.key(0)
+hidden_size = 16
+
+# Factory: hidden_size is trunk embedding width; state length defaults match LRU
+layer = make_layer(hidden_size, key)
+
+# Or call the constructor explicitly
+layer = LRU(hidden_size=hidden_size, recurrent_size=hidden_size, key=key)
+
+# Semigroup only (the associative scan operator inside the cell)
+sg = LRUSemigroup(recurrent_size=hidden_size)
+
 sequence_starts = jnp.array([True, False, False, True, False])
-x = jnp.zeros((5, 3))
+x = jnp.zeros((5, hidden_size))
 inputs = (x, sequence_starts)
 
-# Initialize a multi-layer recurrent model
-key = jax.random.key(0)
-make_layer_fn = lambda recurrent_size, key: LRU(
-    hidden_size=recurrent_size, recurrent_size=recurrent_size, key=key
-)
-model = ResidualModel(
-    make_layer_fn=make_layer_fn,
-    input_size=3,
-    recurrent_size=16,
-    output_size=4,
-    num_layers=2,
-    key=key,
-)
-
-# Note: We also have layers if you want to build your own model
-layer = LRU(hidden_size=16, recurrent_size=16, key=key)
-# Or semigroups/set actions (scanned functions) if you want to build your own layer
-sg = LRUSemigroup(recurrent_size=16)
-
-# Run the model! All models are jit-capable, using equinox.filter_jit
-h = eqx.filter_jit(model.initialize_carry)()
-# Unlike most other libraries, we output ALL recurrent states h, not just the most recent
-h, y = eqx.filter_jit(model)(h, inputs)
-# Since we have two layers, we have a recurrent state of shape
-print(debug_shape(h))
-#     ((5, 16), # Recurrent states of first layer
-#     (5,) # Start carries for first layer
-#     (5, 16) # Recurrent states of second layer
-#     (5,)) # Start carries for second layer
-#
-# Do your prediction
-prediction = jax.nn.softmax(y)
-
-# If you want to continue rolling out the RNN from h[-1]
-# you should use the following helper function to extract
-# h[-1] from the nested recurrent state
-latest_h = eqx.filter_jit(model.latest_recurrent_state)(h)
-# Continue rolling out as you please! You can use a single timestep
-# or another sequence.
-last_h, last_y = eqx.filter_jit(model)(latest_h, inputs)
-
-# We can use a similar approach with RNNs
-make_layer_fn = lambda recurrent_size, key: GRU(
-    recurrent_size=recurrent_size, key=key
-)
-model = ResidualModel(
-    make_layer_fn=make_layer_fn,
-    input_size=3,
-    recurrent_size=16,
-    output_size=4,
-    num_layers=2,
-    key=jax.random.key(0),
-)
-h = eqx.filter_jit(model.initialize_carry)()
-h, y = eqx.filter_jit(model)(h, inputs)
-prediction = jax.nn.softmax(y)
-latest_h = eqx.filter_jit(model.latest_recurrent_state)(h)
-h, y = eqx.filter_jit(model)(latest_h, inputs)
+h = eqx.filter_jit(layer.initialize_carry)()
+h, y = eqx.filter_jit(layer)(h, inputs)
 ```
+
+See :mod:`memax.equinox.factory_docs` for how ``hidden_size`` and ``recurrent_size`` differ (especially for matrix-state cells such as FART and GDN). Registered names and variants (e.g. ``Attention-RoPE``) are listed in :mod:`memax.equinox.registry`.
 
 ## Creating Custom Recurrent Models
 All recurrent cells should follow the [`GRAS`](memax/equinox/gras.py) interface. A recurrent cell consists of an `Algebra`. You can roughly think of the `Algebra` as the function that updates the recurrent state, and the `GRAS` as the `Algebra` and all the associated MLPs/gates. You may reuse our `Algebra`s in your custom `GRAS`, or even write your custom `Algebra`.

@@ -105,3 +105,11 @@ class MGU(GRAS):
         self, key: Optional[Shaped[PRNGKeyArray, ""]] = None
     ) -> MGURecurrentStateWithReset:
         return self.algebra.initialize_carry(key)
+
+
+def make_layer(hidden_size, key, **overrides):
+    """Build MGU for a residual trunk.
+
+    ``hidden_size`` is the trunk embedding width and the hidden state length.
+    """
+    return MGU(recurrent_size=hidden_size, key=key, **overrides)

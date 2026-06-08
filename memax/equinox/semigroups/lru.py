@@ -161,3 +161,22 @@ class LRU(GRAS):
         self, key: Optional[Shaped[PRNGKeyArray, ""]] = None
     ) -> LRURecurrentStateWithReset:
         return self.algebra.initialize_carry(key)
+
+
+def make_layer(hidden_size: int, key, **overrides):
+    """Build LRU for a residual trunk.
+
+    ``hidden_size`` is the trunk embedding width. ``recurrent_size`` (complex state
+    length) defaults to ``hidden_size``.
+    """
+    return LRU(
+        hidden_size=hidden_size,
+        recurrent_size=hidden_size,
+        key=key,
+        **overrides,
+    )
+
+
+def make_semigroup(recurrent_size: int, *, key=None, **overrides):
+    """Build the LRU semigroup. ``recurrent_size`` is the complex state length."""
+    return LRUSemigroup(recurrent_size, **overrides)

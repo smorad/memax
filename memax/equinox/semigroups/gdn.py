@@ -141,3 +141,23 @@ class GDN(GRAS):
         # inputs should be of shape [*batch, time, feature]
         # recurrent states should be of shape [*batch, 1, feature]
         return self.algebra.initialize_carry(key)
+
+
+def make_layer(hidden_size: int, key, **overrides):
+    """Build GDN for a residual trunk.
+
+    ``hidden_size`` is the trunk embedding width. ``recurrent_size`` defaults to
+    ``round(hidden_size**0.5)``; state holds ``(recurrent_size, recurrent_size)``
+    matrices — ``O(recurrent_size**2)`` memory.
+    """
+    return GDN(
+        hidden_size=hidden_size,
+        recurrent_size=round(hidden_size**0.5),
+        key=key,
+        **overrides,
+    )
+
+
+def make_semigroup(recurrent_size: int, *, key=None, **overrides):
+    """Build the GDN semigroup. ``recurrent_size`` is the matrix side length."""
+    return GDNSemigroup(recurrent_size, **overrides)

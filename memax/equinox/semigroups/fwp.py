@@ -109,3 +109,23 @@ class FWP(GRAS):
         # inputs should be of shape [*batch, time, feature]
         # recurrent states should be of shape [*batch, 1, feature]
         return self.algebra.initialize_carry(key)
+
+
+def make_layer(hidden_size: int, key, **overrides):
+    """Build FWP for a residual trunk.
+
+    ``hidden_size`` is the trunk embedding width. ``recurrent_size`` defaults to
+    ``round(hidden_size**0.5)``; the carry is a ``(recurrent_size, recurrent_size)``
+    fast-weight matrix — memory scales as ``O(recurrent_size**2)``.
+    """
+    return FWP(
+        hidden_size=hidden_size,
+        recurrent_size=round(hidden_size**0.5),
+        key=key,
+        **overrides,
+    )
+
+
+def make_semigroup(recurrent_size: int, *, key=None, **overrides):
+    """Build the FWP semigroup. ``recurrent_size`` is the ``n × n`` matrix side length."""
+    return FWPSemigroup(recurrent_size, **overrides)

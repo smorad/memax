@@ -1,3 +1,5 @@
+import math
+
 import jax
 import jax.numpy as jnp
 from beartype import beartype as typechecker
@@ -187,3 +189,38 @@ class TTTLinear(GRAS):
         self, key: Optional[Shaped[PRNGKeyArray, ""]] = None
     ) -> TTTRecurrentStateWithReset:
         return self.algebra.initialize_carry(key)
+
+
+def make_layer(
+    hidden_size: int,
+    key,
+    *,
+    positional_embedding=None,
+    recurrent_size: int | None = None,
+    **overrides,
+):
+    """Build TTTLinear for a residual trunk.
+
+    ``hidden_size`` is the trunk embedding width. ``recurrent_size`` (state matrix
+    side length) defaults to ``round(hidden_size**0.5)``, or an even value when
+    ``positional_embedding="rope"``. State memory scales as ``O(recurrent_size**2)``.
+    """
+    if recurrent_size is None:
+        if positional_embedding == "rope":
+            recurrent_size = math.ceil(hidden_size**0.5 / 2) * 2
+        else:
+            recurrent_size = round(hidden_size**0.5)
+    return TTTLinear(
+        hidden_size=hidden_size,
+        recurrent_size=recurrent_size,
+        key=key,
+        positional_embedding=positional_embedding,
+        **overrides,
+    )
+
+
+def make_semigroup(
+    recurrent_size: int, *, key=None, use_rope: bool = False, **overrides
+):
+    """Build the TTT semigroup. ``recurrent_size`` is the matrix side length."""
+    return TTTLinearSemigroup(recurrent_size, use_rope=use_rope, **overrides)

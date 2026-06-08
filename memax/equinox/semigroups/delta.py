@@ -133,3 +133,23 @@ class DeltaNet(GRAS):
         # inputs should be of shape [*batch, time, feature]
         # recurrent states should be of shape [*batch, 1, feature]
         return self.algebra.initialize_carry(key)
+
+
+def make_layer(hidden_size: int, key, **overrides):
+    """Build DeltaNet for a residual trunk.
+
+    ``hidden_size`` is the trunk embedding width. ``recurrent_size`` defaults to
+    ``round(hidden_size**0.5)``; state uses ``(recurrent_size, recurrent_size)``
+    matrices — ``O(recurrent_size**2)`` memory.
+    """
+    return DeltaNet(
+        hidden_size=hidden_size,
+        recurrent_size=round(hidden_size**0.5),
+        key=key,
+        **overrides,
+    )
+
+
+def make_semigroup(recurrent_size: int, *, key=None, **overrides):
+    """Build the DeltaNet semigroup. ``recurrent_size`` is the matrix side length."""
+    return DeltaNetSemigroup(recurrent_size, **overrides)

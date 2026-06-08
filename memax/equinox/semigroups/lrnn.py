@@ -85,3 +85,20 @@ class LinearRecurrent(GRAS):
         self, key: Optional[Shaped[PRNGKeyArray, ""]] = None
     ) -> LinearRNNRecurrentStateWithReset:
         return self.algebra.initialize_carry(key)
+
+
+def make_layer(hidden_size: int, key, **overrides):
+    """Build LinearRNN for a residual trunk.
+
+    ``hidden_size`` is both the trunk embedding width and the state length.
+    """
+    return LinearRecurrent(
+        recurrent_size=hidden_size,
+        key=key,
+        **overrides,
+    )
+
+
+def make_semigroup(recurrent_size: int, *, key=None, **overrides):
+    """Build the LinearRNN semigroup. ``recurrent_size`` is the state length."""
+    return LinearRNNSemigroup(recurrent_size, **overrides)

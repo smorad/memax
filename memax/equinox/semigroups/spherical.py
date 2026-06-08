@@ -106,3 +106,23 @@ class PSpherical(GRAS):
         self, key: Optional[Shaped[PRNGKeyArray, ""]] = None
     ) -> SphericalRecurrentStateWithReset:
         return self.algebra.initialize_carry(key)
+
+
+def make_layer(hidden_size: int, key, **overrides):
+    """Build PSpherical for a residual trunk.
+
+    ``hidden_size`` is the trunk embedding width. ``recurrent_size`` (rotation
+    dimension) defaults to ``round(hidden_size**0.5)``; state is ``n × n`` rotation
+    data — ``O(recurrent_size**2)`` for the algebra.
+    """
+    return PSpherical(
+        recurrent_size=round(hidden_size**0.5),
+        hidden_size=hidden_size,
+        key=key,
+        **overrides,
+    )
+
+
+def make_semigroup(recurrent_size: int, *, key=None, **overrides):
+    """Build the PSpherical semigroup. ``recurrent_size`` is the rotation dimension ``n``."""
+    return PSphericalSemigroup(recurrent_size, **overrides)

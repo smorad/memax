@@ -132,3 +132,22 @@ class Stack(GRAS):
         self, key: Optional[Shaped[PRNGKeyArray, ""]] = None
     ) -> StackRecurrentStateWithReset:
         return self.algebra.initialize_carry(key)
+
+
+def make_layer(hidden_size: int, key, **overrides):
+    """Build Stack for a residual trunk.
+
+    ``hidden_size`` is the per-slot feature size. The carry has shape
+    ``(window_size, hidden_size)`` (default ``window_size=4``), not a single
+    vector of length ``hidden_size``.
+    """
+    return Stack(
+        recurrent_size=hidden_size,
+        key=key,
+        **{"window_size": 4, **overrides},
+    )
+
+
+def make_semigroup(recurrent_size: int, *, key=None, **overrides):
+    """Build the Stack semigroup. ``recurrent_size`` is the per-slot feature size."""
+    return StackSemigroup(recurrent_size, **{"stack_size": 4, **overrides})

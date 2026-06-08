@@ -18,34 +18,34 @@ class ResidualModel(Module):
     mixers: List[LayerMixer]
     map_in: nn.Linear
     map_out: nn.Linear
-    recurrent_size: int
+    hidden_size: int
 
     def __init__(
         self,
         make_layer_fn,
         input_size,
         output_size,
-        recurrent_size,
+        hidden_size,
         num_layers=2,
         activation=jax.nn.leaky_relu,
         *,
         key,
     ):
-        self.recurrent_size = recurrent_size
+        self.hidden_size = hidden_size
         self.layers = []
         self.mixers = []
         keys = jax.random.split(key, 3)
-        self.map_in = nn.Linear(input_size, recurrent_size, key=keys[0])
-        self.map_out = nn.Linear(recurrent_size, output_size, key=keys[1])
+        self.map_in = nn.Linear(input_size, hidden_size, key=keys[0])
+        self.map_out = nn.Linear(hidden_size, output_size, key=keys[1])
         key = keys[2]
         for _ in range(num_layers):
             key, layer_key, mixer_key = jax.random.split(key, 3)
-            layer = make_layer_fn(recurrent_size=recurrent_size, key=layer_key)
+            layer = make_layer_fn(hidden_size=hidden_size, key=layer_key)
             self.layers.append(layer)
             self.mixers.append(
                 LayerMixer(
                     layer.readout_dim,
-                    recurrent_size,
+                    hidden_size,
                     num_heads=1,
                     activation=activation,
                     key=mixer_key,
