@@ -4,8 +4,7 @@ import jax
 import jax.numpy as jnp
 from datasets import load_dataset  # huggingface datasets
 
-from memax.train_utils import get_residual_memory_models
-
+from memax.equinox.train_utils import build_model
 
 NUM_EPOCHS = 100
 BATCH_SIZE = 32
@@ -158,4 +157,4 @@ results = make_dataset()
 
 
 key = jax.random.key(SEED)
-models = get_residual_memory_models(input=1, hidden=256, output=NUM_LABELS, key=key)
+models = build_model(input=1, hidden=256, output=NUM_LABELS, key=key)

@@ -1,15 +1,14 @@
-from beartype.typing import Callable, Optional, Tuple
-
 import jax
 import jax.numpy as jnp
 from beartype import beartype as typechecker
+from beartype.typing import Callable, Optional, Tuple
 from equinox import nn
 from jaxtyping import Array, Float, Int, PRNGKeyArray, Shaped, jaxtyped
 
-from memax.equinox.groups import BinaryAlgebra, Semigroup, Resettable
 from memax.equinox.gras import GRAS
-from memax.mtypes import Input, StartFlag
+from memax.equinox.groups import BinaryAlgebra, Resettable, Semigroup
 from memax.equinox.scans import semigroup_scan
+from memax.mtypes import Input, StartFlag
 
 TTTRecurrentState = Tuple[
     Float[Array, "Key Value"],
@@ -19,7 +18,9 @@ TTTRecurrentState = Tuple[
 TTTRecurrentStateWithReset = Tuple[TTTRecurrentState, StartFlag]
 
 
-def apply_rope_at_position(x: Float[Array, "Feat"], position: Shaped[Array, ""]) -> Float[Array, "Feat"]:
+def apply_rope_at_position(
+    x: Float[Array, "Feat"], position: Shaped[Array, ""]
+) -> Float[Array, "Feat"]:
     """Apply RoPE to a single feature vector at a specific (1-indexed) position."""
     feat = x.shape[0]
     assert feat % 2 == 0, "Feature dimension must be even"
@@ -83,8 +84,8 @@ class TTTLinearSemigroup(Semigroup):
 
 class TTTLinear(GRAS):
     """The minimalist Test-Time Training (Linear) architecture.
-    
-    Replaces data-dependent gating with an inner-loop gradient descent step (eta) 
+
+    Replaces data-dependent gating with an inner-loop gradient descent step (eta)
     to minimize a self-supervised reconstruction loss.
     """
 
@@ -106,10 +107,9 @@ class TTTLinear(GRAS):
     K: nn.Linear
     Q: nn.Linear
     V: nn.Linear
-    output: nn.Linear
     eta: Float[Array, ""]  # The learned inner-loop learning rate
     positional_embedding: Optional[str]
-    use_residual: bool # "Undocumented" update as featured in the official code
+    use_residual: bool  # "Undocumented" update as featured in the official code
 
     def __init__(
         self,
@@ -119,9 +119,13 @@ class TTTLinear(GRAS):
         positional_embedding: Optional[str] = None,
         use_residual: bool = False,
     ):
-        assert positional_embedding in [None, "rope"], "positional_embedding must be None or 'rope'"
+        assert positional_embedding in [
+            None,
+            "rope",
+        ], "positional_embedding must be None or 'rope'"
         self.recurrent_size = recurrent_size
         self.hidden_size = hidden_size
+        self.readout_dim = recurrent_size
         self.positional_embedding = positional_embedding
         self.algebra = Resettable(
             TTTLinearSemigroup(
@@ -130,12 +134,11 @@ class TTTLinear(GRAS):
         )
         self.scan = semigroup_scan
 
-        keys = jax.random.split(key, 4)
+        keys = jax.random.split(key, 3)
 
         self.K = nn.Linear(hidden_size, recurrent_size, use_bias=False, key=keys[0])
         self.Q = nn.Linear(hidden_size, recurrent_size, use_bias=False, key=keys[1])
         self.V = nn.Linear(hidden_size, recurrent_size, use_bias=False, key=keys[2])
-        self.output = nn.Linear(recurrent_size, hidden_size, key=keys[3])
         self.use_residual = use_residual
         # Initialize the inner learning rate as a learnable parameter.
         self.eta = jnp.array(0.1)
@@ -145,11 +148,11 @@ class TTTLinear(GRAS):
         self, x: Input, key: Optional[Shaped[PRNGKeyArray, ""]] = None
     ) -> TTTRecurrentStateWithReset:
         emb, start = x
-        
+
         k = self.K(emb)
         if self.positional_embedding == "rope":
             k = apply_rope_at_position(k, jnp.array(1, dtype=jnp.int32))
-        
+
         v = self.V(emb)
 
         M = jnp.eye(self.recurrent_size) - self.eta * jnp.outer(k, k)
@@ -160,7 +163,7 @@ class TTTLinear(GRAS):
             # As written in the paper
             X = self.eta * jnp.outer(v, k)
         dt = jnp.array(1, dtype=jnp.int32)
-        
+
         return (M, X, dt), start
 
     @jaxtyped(typechecker=typechecker)
@@ -169,15 +172,15 @@ class TTTLinear(GRAS):
         h: TTTRecurrentStateWithReset,
         x: Input,
         key: Optional[Shaped[PRNGKeyArray, ""]] = None,
-    ) -> Float[Array, "{self.hidden_size}"]:
+    ) -> Float[Array, "{self.readout_dim}"]:
         emb, start = x
         (M, X, t), reset_flag = h
-        
+
         q = self.Q(emb)
         if self.positional_embedding == "rope":
             q = apply_rope_at_position(q, t)
-        
-        return self.output(X @ q)
+
+        return X @ q
 
     @jaxtyped(typechecker=typechecker)
     def initialize_carry(

@@ -74,17 +74,16 @@ class Spherical(GRAS):
         ],
         SphericalRecurrentStateWithReset,
     ]
-    W_y: nn.Linear
     recurrent_size: int
     hidden_size: int
 
     def __init__(self, recurrent_size, hidden_size, key):
         self.recurrent_size = recurrent_size
         self.hidden_size = hidden_size
+        self.readout_dim = recurrent_size
         keys = jax.random.split(key)
         self.algebra = Resettable(SphericalSetAction(recurrent_size, key=keys[0]))
         self.scan = set_action_scan
-        self.W_y = nn.Linear(recurrent_size, hidden_size, key=keys[1])
 
     @jaxtyped(typechecker=typechecker)
     def forward_map(
@@ -99,10 +98,10 @@ class Spherical(GRAS):
         h: SphericalRecurrentStateWithReset,
         x: Input,
         key: Optional[Shaped[PRNGKeyArray, ""]] = None,
-    ) -> Float[Array, "{self.hidden_size}"]:
+    ) -> Float[Array, "{self.readout_dim}"]:
         z, reset_flag = h
         emb, start = x
-        return self.W_y(z)
+        return z
 
     @jaxtyped(typechecker=typechecker)
     def initialize_carry(

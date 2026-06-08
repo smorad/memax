@@ -1,14 +1,18 @@
 """Ensure that the reset model is equivalent to a non-reset batched model"""
+
 import equinox as eqx
 import jax
 import jax.numpy as jnp
 import pytest
 
-from memax.equinox.train_utils import add_batch_dim, get_residual_memory_models
+from memax.equinox.train_utils import add_batch_dim, build_model
 
-@pytest.mark.parametrize("name, model", get_residual_memory_models(
+
+@pytest.mark.parametrize(
+    "name, model",
+    build_model(
         input=1, hidden=8, output=10, num_layers=2, key=jax.random.key(0)
-    ).items()
+    ).items(),
 )
 def test_reset(name, model):
     print(f"Testing {name}")
@@ -30,6 +34,7 @@ def test_reset(name, model):
         atol=1e-5,
         rtol=1e-5,
     ), f"Reset failed for {name}"
+
 
 if __name__ == "__main__":
     test_reset()

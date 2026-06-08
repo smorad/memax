@@ -110,6 +110,7 @@ class IndRNN(GRAS):
     ):
         self.recurrent_size = recurrent_size
         self.hidden_size = hidden_size
+        self.readout_dim = recurrent_size
         keys = jax.random.split(key, 3)
 
         if recurrent_max_abs is None and max_timesteps is not None:

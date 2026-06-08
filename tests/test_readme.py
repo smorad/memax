@@ -3,9 +3,9 @@ def test_readme():
     import jax
     import jax.numpy as jnp
 
-    from memax.equinox.set_actions.gru import GRU
     from memax.equinox.models.residual import ResidualModel
     from memax.equinox.semigroups.lru import LRU, LRUSemigroup
+    from memax.equinox.set_actions.gru import GRU
     from memax.utils import debug_shape
 
     # You can pack multiple subsequences into a single sequence using the start flag
@@ -42,7 +42,7 @@ def test_readme():
     #     (5,) # Start carries for first layer
     #     (5, 16) # Recurrent states of second layer
     #     (5,)) # Start carries for second layer
-    # 
+    #
     # Do your prediction
     prediction = jax.nn.softmax(y)
 
@@ -72,22 +72,27 @@ def test_readme():
     latest_h = eqx.filter_jit(model.latest_recurrent_state)(h)
     h, y = eqx.filter_jit(model)(latest_h, inputs)
 
+
 def test_readme_quickstart():
-    from memax.equinox.train_utils import get_residual_memory_model
     import jax
     import jax.numpy as jnp
     from equinox import filter_jit, filter_vmap
-    from memax.equinox.train_utils import add_batch_dim
 
-    T, F = 5, 6 # time and feature dim
+    from memax.equinox.train_utils import add_batch_dim, build_named_model
 
-    model = get_residual_memory_model(
-        model_name="LRU", input=F, hidden=8, output=1, num_layers=2, 
-        key=jax.random.key(0)
+    T, F = 5, 6  # time and feature dim
+
+    model = build_named_model(
+        model_name="LRU",
+        input=F,
+        hidden=8,
+        output=1,
+        num_layers=2,
+        key=jax.random.key(0),
     )
 
     starts = jnp.array([True, False, False, True, False])
-    xs = jnp.zeros((T, F)) 
+    xs = jnp.zeros((T, F))
     hs, ys = filter_jit(model)(model.initialize_carry(), (xs, starts))
     last_h = filter_jit(model.latest_recurrent_state)(hs)
 
@@ -98,6 +103,7 @@ def test_readme_quickstart():
     hs_0 = add_batch_dim(model.initialize_carry(), B)
     hs, ys = filter_jit(filter_vmap(model))(hs_0, (xs, starts))
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     test_readme()
     test_readme_quickstart()

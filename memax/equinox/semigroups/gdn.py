@@ -1,16 +1,15 @@
-from beartype.typing import Callable, List, Optional, Tuple
-
+import equinox as eqx
 import jax
 import jax.numpy as jnp
 from beartype import beartype as typechecker
-import equinox as eqx
+from beartype.typing import Callable, List, Optional, Tuple
 from equinox import nn
 from jaxtyping import Array, Float, PRNGKeyArray, Shaped, jaxtyped
 
-from memax.equinox.groups import BinaryAlgebra, Semigroup, Resettable
 from memax.equinox.gras import GRAS
-from memax.mtypes import Input, StartFlag
+from memax.equinox.groups import BinaryAlgebra, Resettable, Semigroup
 from memax.equinox.scans import semigroup_scan
+from memax.mtypes import Input, StartFlag
 
 GDNRecurrentState = Tuple[
     Float[Array, "Key Value"],
@@ -24,6 +23,7 @@ def phi(x, key=None):
     # https://arxiv.org/pdf/2406.06484 uses silu
     return jax.nn.silu(x)
 
+
 def psi(x, key=None):
     # https://arxiv.org/pdf/2102.11174 uses sigmoid
     # https://arxiv.org/pdf/2508.08435 suggests 2 * sigmoid
@@ -31,7 +31,7 @@ def psi(x, key=None):
 
 
 class GDNSemigroup(Semigroup):
-    """The Gated Delta Net semigroup (recurrent update) 
+    """The Gated Delta Net semigroup (recurrent update)
     from https://arxiv.org/pdf/2412.06464"""
 
     recurrent_size: int
@@ -45,7 +45,7 @@ class GDNSemigroup(Semigroup):
     ) -> GDNRecurrentState:
         return (
             jnp.eye(self.recurrent_size),
-            jnp.zeros((self.recurrent_size, self.recurrent_size))
+            jnp.zeros((self.recurrent_size, self.recurrent_size)),
         )
 
     @jaxtyped(typechecker=typechecker)
@@ -87,15 +87,15 @@ class GDN(GRAS):
     V: nn.Linear
     w: nn.Linear
     alpha: nn.Linear
-    output: nn.Linear
 
     def __init__(self, hidden_size, recurrent_size, key):
         self.recurrent_size = recurrent_size
         self.hidden_size = hidden_size
+        self.readout_dim = recurrent_size
         self.algebra = Resettable(GDNSemigroup(recurrent_size))
         self.scan = semigroup_scan
 
-        keys = jax.random.split(key, 6)
+        keys = jax.random.split(key, 5)
 
         self.K = nn.Linear(hidden_size, recurrent_size, use_bias=False, key=keys[0])
         self.Q = nn.Linear(hidden_size, recurrent_size, use_bias=False, key=keys[1])
@@ -106,7 +106,6 @@ class GDN(GRAS):
         self.alpha = eqx.tree_at(
             lambda l: l.bias, alpha, jnp.full_like(alpha.bias, 4.0)
         )
-        self.output = nn.Linear(recurrent_size, hidden_size, key=keys[5])
 
     @jaxtyped(typechecker=typechecker)
     def forward_map(
@@ -128,12 +127,12 @@ class GDN(GRAS):
         h: GDNRecurrentStateWithReset,
         x: Input,
         key: Optional[Shaped[PRNGKeyArray, ""]] = None,
-    ) -> Float[Array, "{self.hidden_size}"]:
+    ) -> Float[Array, "{self.readout_dim}"]:
         emb, start = x
         (M, X), reset_flag = h
         q = phi(self.Q(emb))
         q = q / (jnp.linalg.norm(q) + 1e-6)  # normalize query
-        return self.output(X @ q)
+        return X @ q
 
     @jaxtyped(typechecker=typechecker)
     def initialize_carry(

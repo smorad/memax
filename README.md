@@ -78,7 +78,7 @@ uv sync --extra train --extra flax
 
 ## Equinox Quickstart
 ```python
-from memax.equinox.train_utils import get_residual_memory_model
+from memax.equinox.train_utils import build_named_model
 import jax
 import jax.numpy as jnp
 from equinox import filter_jit, filter_vmap
@@ -86,7 +86,7 @@ from memax.equinox.train_utils import add_batch_dim
 
 T, F = 5, 6 # time and feature dim
 
-model = get_residual_memory_model(
+model = build_named_model(
     model_name="LRU", input=F, hidden=8, output=1, num_layers=2,
     key=jax.random.key(0)
 )

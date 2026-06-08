@@ -1,16 +1,15 @@
-from beartype.typing import Callable, Optional, Tuple
-
+import equinox as eqx
 import jax
 import jax.numpy as jnp
 from beartype import beartype as typechecker
-import equinox as eqx
+from beartype.typing import Callable, Optional, Tuple
 from equinox import nn
 from jaxtyping import Array, Float, PRNGKeyArray, Shaped, jaxtyped
 
-from memax.equinox.groups import BinaryAlgebra, SetAction, Resettable
 from memax.equinox.gras import GRAS
-from memax.mtypes import Input, StartFlag
+from memax.equinox.groups import BinaryAlgebra, Resettable, SetAction
 from memax.equinox.scans import set_action_scan
+from memax.mtypes import Input, StartFlag
 
 ElmanRecurrentState = Float[Array, "Recurrent"]
 ElmanRecurrentStateWithReset = Tuple[ElmanRecurrentState, StartFlag]
@@ -67,16 +66,17 @@ class Elman(GRAS):
     recurrent_size: int
     hidden_size: int
     W_h: nn.Linear
-    W_y: nn.Linear
 
     def __init__(self, recurrent_size, hidden_size, activation=jax.nn.tanh, *, key):
         self.recurrent_size = recurrent_size
         self.hidden_size = hidden_size
-        keys = jax.random.split(key, 3)
-        self.algebra = Resettable(ElmanSetAction(recurrent_size, activation=activation, key=keys[0]))
+        self.readout_dim = recurrent_size
+        keys = jax.random.split(key, 2)
+        self.algebra = Resettable(
+            ElmanSetAction(recurrent_size, activation=activation, key=keys[0])
+        )
         self.scan = set_action_scan
         self.W_h = nn.Linear(hidden_size, recurrent_size, use_bias=False, key=keys[1])
-        self.W_y = nn.Linear(recurrent_size, hidden_size, key=keys[2])
 
     @jaxtyped(typechecker=typechecker)
     def forward_map(
@@ -91,10 +91,10 @@ class Elman(GRAS):
         h: ElmanRecurrentStateWithReset,
         x: Input,
         key: Optional[Shaped[PRNGKeyArray, ""]] = None,
-    ) -> Float[Array, "{self.hidden_size}"]:
+    ) -> Float[Array, "{self.readout_dim}"]:
         z, reset_flag = h
         emb, start = x
-        return self.W_y(z)
+        return z
 
     @jaxtyped(typechecker=typechecker)
     def initialize_carry(

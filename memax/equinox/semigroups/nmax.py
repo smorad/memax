@@ -1,15 +1,14 @@
-from beartype.typing import Callable, Optional, Tuple
-
 import jax
 import jax.numpy as jnp
 from beartype import beartype as typechecker
+from beartype.typing import Callable, Optional, Tuple
 from equinox import nn
 from jaxtyping import Array, Float, PRNGKeyArray, Shaped, jaxtyped
 
-from memax.equinox.groups import BinaryAlgebra, Semigroup, Resettable
 from memax.equinox.gras import GRAS
-from memax.mtypes import Input, StartFlag
+from memax.equinox.groups import BinaryAlgebra, Resettable, Semigroup
 from memax.equinox.scans import semigroup_scan
+from memax.mtypes import Input, StartFlag
 
 NMaxRecurrentState = Float[Array, "Hidden"]
 NMaxRecurrentStateWithReset = Tuple[NMaxRecurrentState, StartFlag]
@@ -64,6 +63,7 @@ class NMax(GRAS):
 
     def __init__(self, recurrent_size, key):
         self.recurrent_size = recurrent_size
+        self.readout_dim = recurrent_size
         self.algebra = Resettable(NMaxSemigroup(recurrent_size))
         self.scan = semigroup_scan
 

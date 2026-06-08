@@ -8,17 +8,15 @@ from memax.equinox.models.layer_mixer import LayerMixer
 from memax.mtypes import Input, ResetRecurrentState
 
 
-class ResidualModel(Module):
-    """A model consisting of multiple recurrent layers, with a
-    residual connection from the original input into each layer.
-
-    There is a nonlinearity between network layers."""
+class MultiHeadResidualModel(Module):
+    """A residual stack where per-layer ``ff`` is replaced by :class:`LayerMixer`."""
 
     layers: List[Module]
     mixers: List[LayerMixer]
     map_in: nn.Linear
     map_out: nn.Linear
     recurrent_size: int
+    num_heads: int
 
     def __init__(
         self,
@@ -26,12 +24,19 @@ class ResidualModel(Module):
         input_size,
         output_size,
         recurrent_size,
+        num_heads,
         num_layers=2,
         activation=jax.nn.leaky_relu,
         *,
         key,
     ):
+        if recurrent_size % num_heads != 0:
+            raise ValueError(
+                f"recurrent_size ({recurrent_size}) must be divisible by "
+                f"num_heads ({num_heads})"
+            )
         self.recurrent_size = recurrent_size
+        self.num_heads = num_heads
         self.layers = []
         self.mixers = []
         keys = jax.random.split(key, 3)
@@ -46,7 +51,7 @@ class ResidualModel(Module):
                 LayerMixer(
                     layer.readout_dim,
                     recurrent_size,
-                    num_heads=1,
+                    num_heads=num_heads,
                     activation=activation,
                     key=mixer_key,
                 )

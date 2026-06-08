@@ -1,15 +1,14 @@
-from beartype.typing import Callable, List, Optional, Tuple
-
 import jax
 import jax.numpy as jnp
 from beartype import beartype as typechecker
+from beartype.typing import Callable, List, Optional, Tuple
 from equinox import nn
 from jaxtyping import Array, Float, PRNGKeyArray, Shaped, jaxtyped
 
-from memax.equinox.groups import BinaryAlgebra, Semigroup, Resettable
 from memax.equinox.gras import GRAS
-from memax.mtypes import Input, StartFlag
+from memax.equinox.groups import BinaryAlgebra, Resettable, Semigroup
 from memax.equinox.scans import semigroup_scan
+from memax.mtypes import Input, StartFlag
 
 DeltaProductRecurrentState = Tuple[
     Float[Array, "Key Value"],
@@ -20,9 +19,10 @@ DeltaProductRecurrentStateWithReset = Tuple[DeltaProductRecurrentState, StartFla
 
 def phi(x, key=None):
     # https://arxiv.org/pdf/2102.11174 uses relu
-    # https://arxiv.org/pdf/2406.06484 and 
+    # https://arxiv.org/pdf/2406.06484 and
     # https://arxiv.org/pdf/2502.10297 use silu
     return jax.nn.silu(x)
+
 
 def psi(x, key=None):
     # https://arxiv.org/pdf/2102.11174 uses sigmoid
@@ -31,7 +31,7 @@ def psi(x, key=None):
 
 
 class DeltaProductSemigroup(Semigroup):
-    """The Delta Product update semigroup (recurrent update) 
+    """The Delta Product update semigroup (recurrent update)
     from https://arxiv.org/abs/2502.10297"""
 
     recurrent_size: int
@@ -45,7 +45,7 @@ class DeltaProductSemigroup(Semigroup):
     ) -> DeltaProductRecurrentState:
         return (
             jnp.eye(self.recurrent_size),
-            jnp.zeros((self.recurrent_size, self.recurrent_size))
+            jnp.zeros((self.recurrent_size, self.recurrent_size)),
         )
 
     @jaxtyped(typechecker=typechecker)
@@ -73,7 +73,10 @@ class DeltaProduct(GRAS):
     scan: Callable[
         [
             Callable[
-                [DeltaProductRecurrentStateWithReset, DeltaProductRecurrentStateWithReset],
+                [
+                    DeltaProductRecurrentStateWithReset,
+                    DeltaProductRecurrentStateWithReset,
+                ],
                 DeltaProductRecurrentStateWithReset,
             ],
             DeltaProductRecurrentStateWithReset,
@@ -88,23 +91,26 @@ class DeltaProduct(GRAS):
     V: nn.Linear
     w: nn.Linear
     alpha: nn.Linear
-    output: nn.Linear
 
     def __init__(self, hidden_size: int, recurrent_size: int, rank: int, key):
         self.recurrent_size = recurrent_size
         self.hidden_size = hidden_size
         self.rank = rank
+        self.readout_dim = recurrent_size
         self.algebra = Resettable(DeltaProductSemigroup(recurrent_size))
         self.scan = semigroup_scan
 
         keys = jax.random.split(key, 5)
 
-        self.K = nn.Linear(hidden_size, recurrent_size * rank, use_bias=False, key=keys[0])
+        self.K = nn.Linear(
+            hidden_size, recurrent_size * rank, use_bias=False, key=keys[0]
+        )
         self.Q = nn.Linear(hidden_size, recurrent_size, use_bias=False, key=keys[1])
-        self.V = nn.Linear(hidden_size, recurrent_size * rank, use_bias=False, key=keys[2])
+        self.V = nn.Linear(
+            hidden_size, recurrent_size * rank, use_bias=False, key=keys[2]
+        )
         self.w = nn.Linear(hidden_size, self.rank, key=keys[3])
         self.alpha = nn.Linear(hidden_size, 1, key=keys[4])
-        self.output = nn.Linear(recurrent_size, hidden_size, key=keys[4])
 
     @jaxtyped(typechecker=typechecker)
     def forward_map(
@@ -120,7 +126,10 @@ class DeltaProduct(GRAS):
         beta_outer = lambda u, v, beta: beta * jnp.outer(u, v)
 
         # Outer returns tensor of (rank, recurrent, recurrent), sum reduces to (recurrent, recurrent)
-        M = alpha * (jnp.eye(self.recurrent_size) - jnp.prod(jax.vmap(beta_outer, in_axes=-1)(k, k, beta), axis=0))
+        M = alpha * (
+            jnp.eye(self.recurrent_size)
+            - jnp.prod(jax.vmap(beta_outer, in_axes=-1)(k, k, beta), axis=0)
+        )
         X = jax.vmap(beta_outer, in_axes=-1)(v, k, beta).sum(axis=0)
         return (M, X), start
 
@@ -130,12 +139,12 @@ class DeltaProduct(GRAS):
         h: DeltaProductRecurrentStateWithReset,
         x: Input,
         key: Optional[Shaped[PRNGKeyArray, ""]] = None,
-    ) -> Float[Array, "{self.hidden_size}"]:
+    ) -> Float[Array, "{self.readout_dim}"]:
         emb, start = x
         (M, X), reset_flag = h
         q = phi(self.Q(emb))
         q = q / (jnp.linalg.norm(q) + 1e-6)  # normalize query
-        return self.output(X @ q)
+        return X @ q
 
     @jaxtyped(typechecker=typechecker)
     def initialize_carry(

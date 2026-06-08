@@ -1,16 +1,15 @@
 # https://github.com/NicolasZucchet/minimal-S6/blob/main/S6/model.py
-from beartype.typing import Callable, Optional, Tuple
-
 import jax
 import jax.numpy as jnp
-from equinox import nn
 from beartype import beartype as typechecker
+from beartype.typing import Callable, Optional, Tuple
+from equinox import nn
 from jaxtyping import Array, Complex, Float, PRNGKeyArray, Scalar, Shaped, jaxtyped
 
-from memax.equinox.groups import BinaryAlgebra, Semigroup, Resettable
 from memax.equinox.gras import GRAS
-from memax.mtypes import Input, StartFlag
+from memax.equinox.groups import BinaryAlgebra, Resettable, Semigroup
 from memax.equinox.scans import semigroup_scan
+from memax.mtypes import Input, StartFlag
 
 S6RecurrentState = Tuple[Float[Array, "Recurrent"], Float[Array, "Recurrent"]]
 S6RecurrentStateWithReset = Tuple[S6RecurrentState, StartFlag]
@@ -18,8 +17,8 @@ S6RecurrentStateWithReset = Tuple[S6RecurrentState, StartFlag]
 
 class S6Semigroup(Semigroup):
     """The S6 semigroup (recurrent update) from https://arxiv.org/abs/2312.00752.
-    
-    This is an S5/LRU recurrent update with a learnable timestep parameter. """
+
+    This is an S5/LRU recurrent update with a learnable timestep parameter."""
 
     recurrent_size: int
 
@@ -34,10 +33,7 @@ class S6Semigroup(Semigroup):
         self, key: Optional[Shaped[PRNGKeyArray, ""]] = None
     ) -> S6RecurrentState:
         # Represent a diagonal matrix as a vector
-        return (
-            jnp.ones((self.recurrent_size,)),
-            jnp.zeros((self.recurrent_size,))
-        )
+        return (jnp.ones((self.recurrent_size,)), jnp.zeros((self.recurrent_size,)))
 
     @jaxtyped(typechecker=typechecker)
     def __call__(
@@ -79,6 +75,7 @@ class S6(GRAS):
         keys = jax.random.split(key, 4)
         self.recurrent_size = recurrent_size
         self.hidden_size = hidden_size
+        self.readout_dim = hidden_size
         unwrapped = S6Semigroup(recurrent_size)
         self.algebra = Resettable(unwrapped)
         self.scan = semigroup_scan
@@ -86,10 +83,12 @@ class S6(GRAS):
         self.A_log = jax.random.normal(keys[0], (self.recurrent_size,))
         self.B = nn.Linear(self.hidden_size, self.recurrent_size, key=keys[1])
         self.C = nn.Linear(self.recurrent_size, self.hidden_size, key=keys[2])
-        self.dt = nn.Sequential([
-            nn.Linear(self.hidden_size, self.recurrent_size, key=keys[3]),
-            nn.Lambda(jax.nn.softplus)
-        ])
+        self.dt = nn.Sequential(
+            [
+                nn.Linear(self.hidden_size, self.recurrent_size, key=keys[3]),
+                nn.Lambda(jax.nn.softplus),
+            ]
+        )
 
     @jaxtyped(typechecker=typechecker)
     def forward_map(self, x: Input, key: Optional[Shaped[PRNGKeyArray, ""]] = None):
@@ -116,7 +115,7 @@ class S6(GRAS):
         emb, start = x
         lambdas, lambda_x_Bu = state
         C = self.C(emb)
-        out = C * lambda_x_Bu 
+        out = C * lambda_x_Bu
         return out
 
     @jaxtyped(typechecker=typechecker)

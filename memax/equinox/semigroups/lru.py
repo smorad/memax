@@ -1,15 +1,14 @@
 # https://github.com/NicolasZucchet/minimal-LRU/blob/main/lru/model.py
-from beartype.typing import Callable, Optional, Tuple
-
 import jax
 import jax.numpy as jnp
 from beartype import beartype as typechecker
+from beartype.typing import Callable, Optional, Tuple
 from jaxtyping import Array, Complex, Float, PRNGKeyArray, Scalar, Shaped, jaxtyped
 
-from memax.equinox.groups import BinaryAlgebra, Semigroup, Resettable
 from memax.equinox.gras import GRAS
-from memax.mtypes import Input, StartFlag
+from memax.equinox.groups import BinaryAlgebra, Resettable, Semigroup
 from memax.equinox.scans import semigroup_scan
+from memax.mtypes import Input, StartFlag
 
 LRURecurrentState = Tuple[Complex[Array, "Recurrent"], Complex[Array, "Recurrent"]]
 LRURecurrentStateWithReset = Tuple[LRURecurrentState, StartFlag]
@@ -94,6 +93,7 @@ class LRU(GRAS):
         keys = jax.random.split(key, 7)
         self.recurrent_size = recurrent_size
         self.hidden_size = hidden_size
+        self.readout_dim = hidden_size
         unwrapped = LRUSemigroup(recurrent_size)
         self.algebra = Resettable(unwrapped)
         self.scan = semigroup_scan

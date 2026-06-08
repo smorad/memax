@@ -1,7 +1,6 @@
-from beartype.typing import Callable, Optional, Tuple
-
 import equinox as eqx
 import jax
+from beartype.typing import Callable, Optional, Tuple
 from jaxtyping import PRNGKeyArray, Shaped
 
 from memax.equinox.groups import BinaryAlgebra, Module
@@ -13,9 +12,9 @@ class GRAS(Module):
 
     # Generalized Recurrent Algebraic Structure (GRAS)
 
-    A GRAS contains a **set action** $(H, Z, \bullet)$, an initial state $h_0 \in H$, and two maps/functions 
-    
-    $f$ maps input features and a boolean start flag to the action space $Z$. 
+    A GRAS contains a **set action** $(H, Z, \bullet)$, an initial state $h_0 \in H$, and two maps/functions
+
+    $f$ maps input features and a boolean start flag to the action space $Z$.
 
     $f: X^n \times \\{0, 1\\}^n \mapsto Z^n$
 
@@ -42,7 +41,7 @@ class GRAS(Module):
 
     $ a \bullet (b \bullet c) = (a \bullet b) \bullet c $.
 
-    This enables us to execute $\bullet$ via a parallel scan, which is much more efficient than a sequential scan. 
+    This enables us to execute $\bullet$ via a parallel scan, which is much more efficient than a sequential scan.
     The semigroup GRAS therefore contains the same maps $f$ and $g$ as above, but $\bullet$ is now a semigroup operation.
     Furthermore, in a semigroup, the action and recurrent state spaces are identical, i.e., $Z = H$
 
@@ -53,6 +52,9 @@ class GRAS(Module):
     y = vmap(g)(h, x, start)
     ```
     """
+
+    readout_dim: int
+    """Feature dimension returned by ``backward_map`` before trunk mixing."""
 
     algebra: BinaryAlgebra
     scan: Callable[
@@ -68,7 +70,7 @@ class GRAS(Module):
         self, x: Input, key: Optional[Shaped[PRNGKeyArray, ""]] = None
     ) -> RecurrentState:
         """Maps inputs to the recurrent space.
-        
+
         `(feature, start) -> H`
         """
         raise NotImplementedError
@@ -79,9 +81,11 @@ class GRAS(Module):
         x: Input,
         key: Optional[Shaped[PRNGKeyArray, ""]] = None,
     ) -> OutputEmbedding:
-        """Maps the recurrent space to the output space.
+        """Maps recurrent state and inputs to readout features of size ``readout_dim``.
 
-        `(h, (feature, start)) -> Y`
+        Trunk models (:class:`~memax.equinox.models.residual.ResidualModel`,
+        :class:`~memax.equinox.models.multihead_residual.MultiHeadResidualModel`)
+        apply :class:`~memax.equinox.models.layer_mixer.LayerMixer` after this.
         """
         raise NotImplementedError
 

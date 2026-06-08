@@ -1,15 +1,14 @@
-from beartype.typing import Callable, List, Optional, Tuple
-
 import jax
 import jax.numpy as jnp
 from beartype import beartype as typechecker
+from beartype.typing import Callable, List, Optional, Tuple
 from equinox import nn
 from jaxtyping import Array, Float, PRNGKeyArray, Shaped, jaxtyped
 
-from memax.equinox.groups import BinaryAlgebra, Semigroup, Resettable
 from memax.equinox.gras import GRAS
-from memax.mtypes import Input, StartFlag
+from memax.equinox.groups import BinaryAlgebra, Resettable, Semigroup
 from memax.equinox.scans import semigroup_scan
+from memax.mtypes import Input, StartFlag
 
 FWPRecurrentState = Float[Array, "Key Value"]
 FWPRecurrentStateWithReset = Tuple[FWPRecurrentState, StartFlag]
@@ -20,7 +19,7 @@ def phi(x, key=None):
 
 
 class FWPSemigroup(Semigroup):
-    """The Additive Fast Weight Programmer semigroup (recurrent update) 
+    """The Additive Fast Weight Programmer semigroup (recurrent update)
     from https://arxiv.org/pdf/2508.08435"""
 
     recurrent_size: int
@@ -67,20 +66,19 @@ class FWP(GRAS):
     K: nn.Linear
     Q: nn.Linear
     V: nn.Linear
-    output: nn.Linear
 
     def __init__(self, hidden_size, recurrent_size, key):
         self.recurrent_size = recurrent_size
         self.hidden_size = hidden_size
+        self.readout_dim = recurrent_size
         self.algebra = Resettable(FWPSemigroup(recurrent_size))
         self.scan = semigroup_scan
 
-        keys = jax.random.split(key, 4)
+        keys = jax.random.split(key, 3)
 
         self.K = nn.Linear(hidden_size, recurrent_size, use_bias=False, key=keys[0])
         self.Q = nn.Linear(hidden_size, recurrent_size, use_bias=False, key=keys[1])
         self.V = nn.Linear(hidden_size, recurrent_size, use_bias=False, key=keys[2])
-        self.output = nn.Linear(recurrent_size, hidden_size, key=keys[3])
 
     @jaxtyped(typechecker=typechecker)
     def forward_map(
@@ -98,11 +96,11 @@ class FWP(GRAS):
         h: FWPRecurrentStateWithReset,
         x: Input,
         key: Optional[Shaped[PRNGKeyArray, ""]] = None,
-    ) -> Float[Array, "{self.hidden_size}"]:
+    ) -> Float[Array, "{self.readout_dim}"]:
         emb, start = x
         kv_sum, reset_flag = h
         q = phi(self.Q(emb))
-        return self.output(kv_sum @ q)
+        return kv_sum @ q
 
     @jaxtyped(typechecker=typechecker)
     def initialize_carry(

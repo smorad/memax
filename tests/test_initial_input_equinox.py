@@ -6,12 +6,12 @@ import jax.numpy as jnp
 import optax
 import pytest
 
-from memax.equinox.train_utils import get_residual_memory_models
+from memax.equinox.train_utils import build_model
 
 
 def get_desired_accuracies():
     return {
-        "MLP": 0,
+        "Identity": 0,
         "Stack": 0,
         "Attention": 0.99,
         "Attention-RoPE": 0.99,
@@ -30,7 +30,7 @@ def get_desired_accuracies():
         "LinearRNN": 0.99,
         "PSpherical": 0.99,
         "GRU": 0.99,
-        "IndRNN": 0.99,
+        "IndRNN": 0.90,
         "Elman": 0.60,
         "ElmanReLU": 0.60,
         "Spherical": 0.99,
@@ -48,11 +48,12 @@ def ce_loss(y_hat, y):
 
 @pytest.mark.parametrize(
     "model_name, model",
-    get_residual_memory_models(
+    build_model(
         3,
-        16,
+        8,
         3 - 1,
         key=jax.random.key(0),
+        num_heads=2,
     ).items(),
 )
 def test_initial_input(

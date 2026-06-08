@@ -1,16 +1,15 @@
-from beartype.typing import Callable, Optional, Tuple
-
 import equinox as eqx
 import jax
 import jax.numpy as jnp
 from beartype import beartype as typechecker
+from beartype.typing import Callable, Optional, Tuple
 from equinox import nn
 from jaxtyping import Array, Complex, Float, Int, PRNGKeyArray, Real, Shaped, jaxtyped
 
-from memax.equinox.groups import BinaryAlgebra, Semigroup, Resettable
 from memax.equinox.gras import GRAS
-from memax.mtypes import Input, StartFlag
+from memax.equinox.groups import BinaryAlgebra, Resettable, Semigroup
 from memax.equinox.scans import semigroup_scan
+from memax.mtypes import Input, StartFlag
 
 FFMRecurrentState = Tuple[Complex[Array, "Trace Context"], Int[Array, ""]]
 FFMRecurrentStateWithReset = Tuple[FFMRecurrentState, StartFlag]
@@ -124,6 +123,7 @@ class FFM(GRAS):
         key: Array,
     ):
         self.hidden_size = hidden_size
+        self.readout_dim = hidden_size
         self.trace_size = trace_size
         self.context_size = context_size
         self.scan = semigroup_scan
