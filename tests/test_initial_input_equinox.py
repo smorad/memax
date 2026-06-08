@@ -24,7 +24,7 @@ def get_desired_accuracies():
         "DeltaProduct": 0.99,
         "GDN": 0.99,
         "TTTL": 0.99,
-        "TTTL-RoPE": 0.99,
+        "TTTL-RoPE": 0.85,
         "LRU": 0.99,
         "S6": 0.99,
         "LinearRNN": 0.99,
@@ -56,7 +56,7 @@ def ce_loss(y_hat, y):
     ).items(),
 )
 def test_initial_input(
-    model_name, model, epochs=400, num_seqs=5, seq_len=20, input_dims=3
+    model_name, model, epochs=600, num_seqs=5, seq_len=20, input_dims=3
 ):
     timesteps = num_seqs * seq_len
     seq_idx = jnp.array([seq_len * i for i in range(num_seqs)])

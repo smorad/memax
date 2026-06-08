@@ -39,11 +39,9 @@ def dense(
 ) -> nn.Dense:
     """``nn.Dense`` with optional Equinox-compatible initialization."""
     if use_equinox_init:
-        return nn.Dense(
-            features,
-            kernel_init=equinox_uniform(in_features),
-            bias_init=equinox_uniform(in_features) if use_bias else None,
-            use_bias=use_bias,
-            **kwargs,
-        )
+        dense_kwargs = dict(kwargs)
+        dense_kwargs.setdefault("kernel_init", equinox_uniform(in_features))
+        if use_bias and "bias_init" not in dense_kwargs:
+            dense_kwargs["bias_init"] = equinox_uniform(in_features)
+        return nn.Dense(features, use_bias=use_bias, **dense_kwargs)
     return nn.Dense(features, use_bias=use_bias, **kwargs)
