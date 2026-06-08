@@ -145,7 +145,12 @@ h, y = eqx.filter_jit(layer)(h, inputs)
 We provide the barebones recurrent state update in case you want to build a cell around it
 
 ```python
+import jax.numpy as jnp
+
 from memax.equinox.scans import semigroup_scan
+from memax.equinox.semigroups.lru import LRUSemigroup
+
+hidden_size = 16
 
 sg = LRUSemigroup(recurrent_size=hidden_size)
 h0 = sg.initialize_carry()
