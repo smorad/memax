@@ -2,7 +2,7 @@
 It includes loss functions, accuracy metrics, and training loops.
 It also provides a straightforward way to construct multi-layer recurrent models."""
 
-from typing import Any
+import math
 
 import jax
 import jax.numpy as jnp
@@ -12,9 +12,19 @@ from flax.core import FrozenDict
 from jaxtyping import Array, Shaped
 
 from memax.linen.models.residual import ResidualModel
+from memax.linen.semigroups.attn import Attention, AttentionSemigroup
+from memax.linen.semigroups.delta import DeltaNet, DeltaNetSemigroup
+from memax.linen.semigroups.deltap import DeltaProduct, DeltaProductSemigroup
 from memax.linen.semigroups.fart import FART, FARTSemigroup
+from memax.linen.semigroups.ffm import FFM, FFMSemigroup
+from memax.linen.semigroups.fwp import FWP, FWPSemigroup
+from memax.linen.semigroups.gdn import GDN, GDNSemigroup
+from memax.linen.semigroups.lrnn import LinearRecurrent, LinearRNNSemigroup
 from memax.linen.semigroups.lru import LRU, LRUSemigroup
 from memax.linen.semigroups.s6 import S6, S6Semigroup
+from memax.linen.semigroups.spherical import PSpherical, PSphericalSemigroup
+from memax.linen.semigroups.stack import Stack, StackSemigroup
+from memax.linen.semigroups.ttt import TTTLinear, TTTLinearSemigroup
 from memax.linen.set_actions.gru import GRU
 
 
@@ -88,9 +98,41 @@ def get_semigroups(
     """
     semigroup_kwargs = semigroup_kwargs or {}
     return {
+        "PSpherical": PSphericalSemigroup(
+            recurrent_size, **semigroup_kwargs.get("PSpherical", {})
+        ),
+        "FFM": FFMSemigroup(
+            trace_size=recurrent_size,
+            context_size=recurrent_size,
+            **semigroup_kwargs.get("FFM", {}),
+        ),
         "FART": FARTSemigroup(recurrent_size, **semigroup_kwargs.get("FART", {})),
+        "LinearRNN": LinearRNNSemigroup(
+            recurrent_size, **semigroup_kwargs.get("LinearRNN", {})
+        ),
         "LRU": LRUSemigroup(recurrent_size, **semigroup_kwargs.get("LRU", {})),
         "S6": S6Semigroup(recurrent_size, **semigroup_kwargs.get("S6", {})),
+        "FWP": FWPSemigroup(recurrent_size, **semigroup_kwargs.get("FWP", {})),
+        "DeltaNet": DeltaNetSemigroup(
+            recurrent_size, **semigroup_kwargs.get("DeltaNet", {})
+        ),
+        "DeltaProduct": DeltaProductSemigroup(
+            recurrent_size, **semigroup_kwargs.get("DeltaProduct", {})
+        ),
+        "TTTL": TTTLinearSemigroup(recurrent_size, **semigroup_kwargs.get("TTTL", {})),
+        "TTTL-RoPE": TTTLinearSemigroup(
+            recurrent_size,
+            **semigroup_kwargs.get("TTTL", {"use_rope": True}),
+        ),
+        "GDN": GDNSemigroup(recurrent_size, **semigroup_kwargs.get("GDN", {})),
+        "Stack": StackSemigroup(
+            recurrent_size=recurrent_size,
+            **semigroup_kwargs.get("Stack", {"stack_size": 4}),
+        ),
+        "Attention": AttentionSemigroup(
+            recurrent_size=recurrent_size,
+            **semigroup_kwargs.get("Attention", {"window_size": 4}),
+        ),
     }
 
 
@@ -116,12 +158,68 @@ def get_residual_memory_models(
             recurrent_size=round(recurrent_size**0.5),
             **layer_kwargs.get("FART", {}),
         ),
-        "LRU": lambda recurrent_size: LRU(
-            algebra=LRU.default_algebra(recurrent_size=recurrent_size),
-            scan=LRU.default_scan(),
+        "FWP": lambda recurrent_size: FWP(
+            algebra=FWP.default_algebra(recurrent_size=round(recurrent_size**0.5)),
+            scan=FWP.default_scan(),
             hidden_size=recurrent_size,
-            recurrent_size=recurrent_size,
-            **layer_kwargs.get("LRU", {}),
+            recurrent_size=round(recurrent_size**0.5),
+            **layer_kwargs.get("FWP", {}),
+        ),
+        "DeltaNet": lambda recurrent_size: DeltaNet(
+            algebra=DeltaNet.default_algebra(recurrent_size=round(recurrent_size**0.5)),
+            scan=DeltaNet.default_scan(),
+            hidden_size=recurrent_size,
+            recurrent_size=round(recurrent_size**0.5),
+            **layer_kwargs.get("DeltaNet", {}),
+        ),
+        "DeltaProduct": lambda recurrent_size: DeltaProduct(
+            algebra=DeltaProduct.default_algebra(
+                recurrent_size=round(recurrent_size**0.5)
+            ),
+            scan=DeltaProduct.default_scan(),
+            hidden_size=recurrent_size,
+            recurrent_size=round(recurrent_size**0.5),
+            rank=4,
+            **layer_kwargs.get("DeltaProduct", {}),
+        ),
+        "GDN": lambda recurrent_size: GDN(
+            algebra=GDN.default_algebra(recurrent_size=round(recurrent_size**0.5)),
+            scan=GDN.default_scan(),
+            hidden_size=recurrent_size,
+            recurrent_size=round(recurrent_size**0.5),
+            **layer_kwargs.get("GDN", {}),
+        ),
+        # TODO: Re-enable once TTTL perf matches equinox equivalent
+        # "TTTL": lambda recurrent_size: TTTLinear(
+        #     algebra=TTTLinear.default_algebra(
+        #         recurrent_size=round(recurrent_size**0.5)
+        #     ),
+        #     scan=TTTLinear.default_scan(),
+        #     hidden_size=recurrent_size,
+        #     recurrent_size=round(recurrent_size**0.5),
+        #     **layer_kwargs.get("TTTL", {}),
+        # ),
+        "TTTL-RoPE": lambda recurrent_size: TTTLinear(
+            algebra=TTTLinear.default_algebra(
+                recurrent_size=math.ceil(recurrent_size**0.5 / 2) * 2,
+                use_rope=True,
+            ),
+            scan=TTTLinear.default_scan(),
+            hidden_size=recurrent_size,
+            recurrent_size=math.ceil(recurrent_size**0.5 / 2) * 2,
+            positional_embedding="rope",
+            **layer_kwargs.get("TTTL-RoPE", {}),
+        ),
+        "FFM": lambda recurrent_size: FFM(
+            algebra=FFM.default_algebra(
+                trace_size=4,
+                context_size=recurrent_size // 4,
+            ),
+            scan=FFM.default_scan(),
+            hidden_size=recurrent_size,
+            trace_size=4,
+            context_size=recurrent_size // 4,
+            **layer_kwargs.get("FFM", {}),
         ),
         "S6": lambda recurrent_size: S6(
             algebra=S6.default_algebra(recurrent_size=recurrent_size),
@@ -129,6 +227,65 @@ def get_residual_memory_models(
             hidden_size=recurrent_size,
             recurrent_size=recurrent_size,
             **layer_kwargs.get("S6", {}),
+        ),
+        "PSpherical": lambda recurrent_size: PSpherical(
+            algebra=PSpherical.default_algebra(
+                recurrent_size=round(recurrent_size**0.5)
+            ),
+            scan=PSpherical.default_scan(),
+            hidden_size=recurrent_size,
+            recurrent_size=round(recurrent_size**0.5),
+            **layer_kwargs.get("PSpherical", {}),
+        ),
+        "LRU": lambda recurrent_size: LRU(
+            algebra=LRU.default_algebra(recurrent_size=recurrent_size),
+            scan=LRU.default_scan(),
+            hidden_size=recurrent_size,
+            recurrent_size=recurrent_size,
+            **layer_kwargs.get("LRU", {}),
+        ),
+        "LinearRNN": lambda recurrent_size: LinearRecurrent(
+            algebra=LinearRecurrent.default_algebra(recurrent_size=recurrent_size),
+            scan=LinearRecurrent.default_scan(),
+            recurrent_size=recurrent_size,
+            **layer_kwargs.get("LinearRNN", {}),
+        ),
+        "Stack": lambda recurrent_size: Stack(
+            algebra=Stack.default_algebra(recurrent_size=recurrent_size, window_size=4),
+            scan=Stack.default_scan(),
+            recurrent_size=recurrent_size,
+            stack_size=4,
+            **layer_kwargs.get("Stack", {}),
+        ),
+        "Attention": lambda recurrent_size: Attention(
+            algebra=Attention.default_algebra(
+                recurrent_size=recurrent_size, window_size=20
+            ),
+            scan=Attention.default_scan(),
+            recurrent_size=recurrent_size,
+            window_size=20,
+            positional_embedding=None,
+            **layer_kwargs.get("Attention", {}),
+        ),
+        "Attention-RoPE": lambda recurrent_size: Attention(
+            algebra=Attention.default_algebra(
+                recurrent_size=recurrent_size, window_size=20
+            ),
+            scan=Attention.default_scan(),
+            recurrent_size=recurrent_size,
+            window_size=20,
+            positional_embedding="rope",
+            **layer_kwargs.get("Attention-RoPE", {}),
+        ),
+        "Attention-ALiBi": lambda recurrent_size: Attention(
+            algebra=Attention.default_algebra(
+                recurrent_size=recurrent_size, window_size=20
+            ),
+            scan=Attention.default_scan(),
+            recurrent_size=recurrent_size,
+            window_size=20,
+            positional_embedding="alibi",
+            **layer_kwargs.get("Attention-ALiBi", {}),
         ),
         "GRU": lambda recurrent_size: GRU(
             algebra=GRU.default_algebra(recurrent_size=recurrent_size),
